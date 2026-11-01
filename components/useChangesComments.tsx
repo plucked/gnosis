@@ -4,6 +4,7 @@ import type { PrChanges } from '../lib/pr-changes';
 import type { GitHubReviewThread as Thread } from '../lib/review-threads';
 import { useChangesReviewDrafts, type ChangesReviewDraft } from '../lib/changes-review-drafts';
 import { briefAppliesTo, briefLines, useAgentBrief, type AgentBriefComment, type AgentBriefPin } from '../lib/agent-brief';
+import { toast } from './ui/toast';
 import { ReviewDraftScope, useSessionDraft } from '../lib/session-drafts';
 import { GitHubReviewThread } from './GitHubReviewThread';
 import { ChangesCommentComposer } from './ChangesCommentComposer';
@@ -210,7 +211,22 @@ export function useChangesComments({
           <ChangesDraftComment
             noun="note"
             comment={c}
-            onRemove={(id) => changeBrief((list) => list.filter((d) => d.id !== id))}
+            onRemove={async (id) => {
+              await agentBrief.remove(new Set([id]));
+              const notification = toast.add({
+                title: 'Local note deleted',
+                description: 'Undo is also available in Local notes until you close Gnosis.',
+                actionProps: {
+                  children: 'Undo deletion',
+                  onClick: () => {
+                    toast.update(notification, { actionProps: { children: 'Restoring…', disabled: true } });
+                    void agentBrief.restore(new Set([id])).then(() => toast.close(notification)).catch(() => {
+                      toast.update(notification, { title: 'Could not restore notes', description: 'Open Local notes and try Undo deletion again.', type: 'error' });
+                    });
+                  },
+                },
+              });
+            }}
             onEdit={(id, body) => changeBrief((list) => list.map((d) => (d.id === id ? { ...d, body } : d)))}
           />
         </div>

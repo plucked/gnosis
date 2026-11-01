@@ -1,7 +1,8 @@
 import { MarkdownCommentEditor } from './MarkdownCommentEditor';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useSessionDraft } from '../lib/session-drafts';
 import { Button } from './ui/button';
+
 export function ChangesCommentComposer({
   draftKey,
   label,
@@ -12,7 +13,7 @@ export function ChangesCommentComposer({
 }: {
   draftKey: string;
   label: string;
-  /** Absent when this diff cannot be commented on in GitHub, such as the combined stack diff. */
+  /** Absent when GitHub cannot represent this comparison or selection. */
   onSave?: (body: string, now: boolean) => Promise<void>;
   onAddToBrief?: (body: string) => Promise<void>;
   onCancel: () => void;
@@ -20,9 +21,17 @@ export function ChangesCommentComposer({
 }) {
   const id = useId();
   const [body, setBody] = useSessionDraft(`changes-comment:${draftKey}`, '');
+  // Remember intent across files and comparison views, not the immediate-post action.
+  const [preferred, setPreferred] = useSessionDraft<'local' | 'review'>('changes-comment-destination', 'review');
+  const destination = preferred === 'local' && onAddToBrief ? 'local' : onSave ? 'review' : 'local';
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const pending = useRef(false);
+  const actions = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => actions.current?.scrollIntoView({ block: 'nearest' }));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   async function run(action: (text: string) => Promise<void>) {
     if (pending.current || !body.trim()) return;
     pending.current = true;
@@ -39,9 +48,17 @@ export function ChangesCommentComposer({
       setBusy(false);
     }
   }
-  const save = (now: boolean) => (onSave ? run((text) => onSave(text, now)) : Promise.resolve());
-  const addToBrief = () => (onAddToBrief ? run(onAddToBrief) : Promise.resolve());
-  const submit = () => (onSave ? save(false) : addToBrief());
+  const submit = (target = destination) => {
+    if (target === 'local' && onAddToBrief) {
+      setPreferred('local');
+      return run(onAddToBrief);
+    }
+    if (target === 'review' && onSave) {
+      setPreferred('review');
+      return run((text) => onSave(text, false));
+    }
+  };
+  const shortcut = /Macintosh|Mac OS X/i.test(navigator.userAgent) ? '⌘' : 'Ctrl+';
   return (
     <form
       className="changes-comment-composer"
@@ -50,7 +67,32 @@ export function ChangesCommentComposer({
         void submit();
       }}
     >
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>{!onSave ? label.replace(/^Comment on /, 'Local note on ') : label}</label>
+      {onAddToBrief && onSave && (
+        <fieldset className="changes-comment-destination" disabled={busy}>
+          <legend>Save as</legend>
+          <label>
+            <input
+              type="radio"
+              name={`${id}-destination`}
+              value="local"
+              checked={destination === 'local'}
+              onChange={() => setPreferred('local')}
+            />
+            Local note
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={`${id}-destination`}
+              value="review"
+              checked={destination === 'review'}
+              onChange={() => setPreferred('review')}
+            />
+            Review draft
+          </label>
+        </fieldset>
+      )}
       <MarkdownCommentEditor
         id={id}
         value={body}
@@ -59,19 +101,23 @@ export function ChangesCommentComposer({
         maxLength={65536}
         disabled={busy}
         autoFocus
-        placeholder="Write a comment… Markdown supported."
+        placeholder={
+          destination === 'local'
+            ? 'Write a local note… Markdown supported.'
+            : 'Write a review comment… Markdown supported.'
+        }
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
-            void (e.shiftKey ? addToBrief() : submit());
+            void submit(e.shiftKey && onAddToBrief ? 'local' : destination);
           }
         }}
       />
       <p className="changes-comment-help">
-        {onSave
-          ? `${onAddToBrief ? 'Add local note saves only on this computer. ' : ''}Add to review saves a private draft. Comment now posts to GitHub immediately.`
-          : 'Add local note saves only on this computer. You can copy it with code context for an agent. Nothing is posted to GitHub.'}
+        {destination === 'local'
+          ? 'Saved on this computer, never posted to GitHub. Copy it with code context from Local notes.'
+          : 'Saved as a draft until you submit your GitHub review.'}
         {note && ` ${note}`}
       </p>
       {error && (
@@ -79,35 +125,26 @@ export function ChangesCommentComposer({
           {error}
         </p>
       )}
-      <div className="changes-comment-buttons">
+      <div ref={actions} className="changes-comment-buttons">
+        <span className="changes-comment-shortcut">
+          {shortcut}Enter to {destination === 'local' ? 'add local note' : 'add to review'}
+        </span>
         <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
-        {onAddToBrief && onSave && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || !body.trim()}
-            title="Shift+Cmd+Enter"
-            onClick={() => void addToBrief()}
-          >
-            Add local note
-          </Button>
-        )}
         {onSave && (
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={busy || !body.trim()}
-            onClick={() => void save(true)}
+            onClick={() => void run((text) => onSave(text, true))}
           >
-            Comment now
+            Post to GitHub now
           </Button>
         )}
         <Button type="submit" size="sm" disabled={busy || !body.trim()}>
-          {busy ? 'Saving…' : onSave ? 'Add to review' : 'Add local note'}
+          {busy ? 'Saving…' : destination === 'local' ? 'Add local note' : 'Add to review'}
         </Button>
       </div>
     </form>

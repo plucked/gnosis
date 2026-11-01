@@ -10,6 +10,10 @@ import {
   briefGroups,
   briefLines,
   briefPin,
+  readAgentBrief,
+  updateAgentBrief,
+  removeAgentBriefNotes,
+  restoreAgentBriefNotes,
   type AgentBriefComment,
 } from '../lib/agent-brief';
 import { isReviewStateKey } from '../lib/review-state';
@@ -191,5 +195,68 @@ void test('a brief is saved in the app database and removed when deleted', async
   } finally {
     await store.close();
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+void test('note recovery is scoped, preserves new work, and survives failed writes', async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const data = new Map<string, string>();
+  let fail = false;
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (fail) throw new Error('Disk full');
+        data.set(key, value);
+      },
+      removeItem: (key: string) => {
+        if (fail) throw new Error('Disk full');
+        data.delete(key);
+      },
+    },
+  });
+  const subjectId = 'undo-stack';
+  const note = comment(briefPin(stack, combinedSnapshot, file), { id: 'first', body: 'First instruction' });
+  const newer = { ...note, id: 'newer', body: 'New instruction' };
+  try {
+    await updateAgentBrief(subjectId, () => [note]);
+    fail = true;
+    await assert.rejects(removeAgentBriefNotes(subjectId, new Set([note.id])), /Disk full/);
+    assert.deepEqual(readAgentBrief(subjectId), [note], 'Failed deletion retains the saved note');
+    fail = false;
+    await removeAgentBriefNotes(subjectId, new Set([note.id]));
+    assert.deepEqual(readAgentBrief(subjectId), []);
+    await updateAgentBrief(subjectId, () => [newer]);
+    await restoreAgentBriefNotes('other-pr');
+    assert.deepEqual(readAgentBrief('other-pr'), [], 'Another notebook cannot restore these notes');
+    fail = true;
+    await assert.rejects(restoreAgentBriefNotes(subjectId), /Disk full/);
+    assert.deepEqual(readAgentBrief(subjectId), [newer]);
+    fail = false;
+    await restoreAgentBriefNotes(subjectId);
+    assert.deepEqual(
+      readAgentBrief(subjectId),
+      [newer, note],
+      'Retry restores deleted notes without replacing new work'
+    );
+    await restoreAgentBriefNotes(subjectId);
+    assert.equal(readAgentBrief(subjectId).length, 2, 'Repeated Undo cannot duplicate notes');
+    await removeAgentBriefNotes(subjectId, new Set([note.id]));
+    await updateAgentBrief(subjectId, (current) => [...current, { ...note, body: 'Newer edit' }]);
+    await restoreAgentBriefNotes(subjectId);
+    assert.equal(
+      readAgentBrief(subjectId).find((n) => n.id === note.id)?.body,
+      'Newer edit',
+      'Undo cannot overwrite a newer saved edit'
+    );
+    await removeAgentBriefNotes(subjectId, new Set([note.id, newer.id]));
+    await restoreAgentBriefNotes(subjectId, new Set([note.id]));
+    assert.deepEqual(readAgentBrief(subjectId).map((n) => n.id), [note.id], 'A toast restores only its own note');
+    await restoreAgentBriefNotes(subjectId);
+    assert.equal(readAgentBrief(subjectId).length, 2, 'The other deletion remains recoverable');
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
   }
 });

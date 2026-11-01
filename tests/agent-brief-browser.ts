@@ -88,7 +88,7 @@ void app.whenReady().then(async () => {
     await js('window.lineNumber(36).click()');
     await wait("!!document.querySelector('.changes-comment-composer textarea')");
     assert.match(await js<string>("document.querySelector('.changes-comment-composer label').textContent"), /new line 36 · Combined stack/);
-    assert.equal(await hasButton('Comment now'), false);
+    assert.equal(await hasButton('Post to GitHub now'), false);
     assert.equal(await hasButton('Add to review'), false);
     await js("window.fill('.changes-comment-composer textarea','This limit belongs in the first PR.')");
     await capture('composer-combined');
@@ -123,10 +123,15 @@ void app.whenReady().then(async () => {
     await js('window.commentButton().click()');
     await wait("!!document.querySelector('.changes-comment-composer textarea')");
     assert.match(await js<string>("document.querySelector('.changes-comment-composer label').textContent"), /new lines 34–36 · PR #/);
-    assert.equal(await hasButton('Comment now'), true);
-    assert.equal(await hasButton('Add to review'), true);
+    assert.equal(await hasButton('Post to GitHub now'), true);
+    assert.equal(await js("document.querySelector('.changes-comment-destination input[value=local]').checked"), true, 'Local destination carries from Combined to By PR');
+    await js("document.querySelector('.changes-comment-destination input[value=review]').click()");
+    await wait("[...document.querySelectorAll('.changes-comment-composer button')].some(b=>b.textContent==='Add to review')");
+    await js("document.querySelector('.changes-comment-destination input[value=local]').click()");
+    await wait("[...document.querySelectorAll('.changes-comment-composer button')].some(b=>b.textContent==='Add local note')");
+    await capture('composer-destination');
     await js("window.fill('.changes-comment-composer textarea','Rename these constants.')");
-    await click('Add local note');
+    await js("document.querySelector('.changes-comment-composer textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',metaKey:true,bubbles:true,cancelable:true}))");
     await wait("document.querySelector('.changes-pending-comment')?.textContent.includes('Rename these constants.')");
     assert.equal(await tabCount(), '2');
     assert.equal(await js('window.commentWrites.length'), 0, 'A brief comment never reaches GitHub');
@@ -136,7 +141,7 @@ void app.whenReady().then(async () => {
     await wait('window.commentButton()?.disabled===false');
     await js('window.commentButton().click()');
     await wait("document.querySelector('.changes-comment-composer label')?.textContent.includes('old line 36 to new line 36')");
-    assert.equal(await hasButton('Comment now'), false);
+    assert.equal(await hasButton('Post to GitHub now'), false);
     assert.match(await js<string>("document.querySelector('.changes-comment-help').textContent"), /one side of the diff/);
     await js("window.fill('.changes-comment-composer textarea','Keep the old value.')");
     await click('Add local note');
@@ -154,6 +159,7 @@ void app.whenReady().then(async () => {
     await capture('brief-narrow');
     assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true);
     win.setSize(1280, 800);
+    await click('Preview');
     await click('Copy for agent');
     await wait('window.copied.length===1');
     const markdown = await js<string>('window.copied[0]');
@@ -168,6 +174,8 @@ void app.whenReady().then(async () => {
     assert.match(markdown, /const value35 = 36;/, 'The commented code travels with the comment');
     assert.equal(await js("document.querySelector('.agent-brief-preview pre').textContent"), markdown);
     assert.equal(await js("document.querySelectorAll('.agent-brief-comment').length"), 3, 'Copy keeps the brief');
+
+    await click('Hide preview');
 
     // Jump to a comment in the view it was written in, then come back.
     await js("document.querySelectorAll('.agent-brief-location')[0].click()");
@@ -196,8 +204,27 @@ void app.whenReady().then(async () => {
     await js("[...document.querySelectorAll('.agent-brief-comment')].find(c=>c.textContent.includes('Rename these')).querySelector('.changes-draft-comment button').click()");
     await wait("!!document.querySelector('.agent-brief-comment textarea')");
     await js("window.fill('.agent-brief-comment textarea','Rename these constants and their tests.')");
+    assert.equal(await js("[...document.querySelectorAll('.agent-brief-actions button')].find(b=>b.textContent==='Copy for agent').disabled"), true, 'Never export the older saved note while an edit is visible');
+    assert.equal(await js("document.querySelector('[aria-label=\"Note actions\"]').disabled"), true);
+    await capture('pending-edit');
+    // Storage failure leaves the edit open and the original note saved.
+    await js(`window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key.startsWith('gnosis-agent-brief:'))throw Error('Disk full');window.originalSetItem.call(this,key,value)};null`);
+    await click('Save note');
+    await wait("document.querySelector('.agent-brief-comment [role=alert]')?.textContent.includes('Your text is still here')");
+    assert.equal(await js<string>("document.querySelector('.agent-brief-comment textarea').value"), 'Rename these constants and their tests.');
+    await js('Storage.prototype.setItem=window.originalSetItem;null');
     await click('Save note');
     await wait("document.querySelector('.agent-brief').textContent.includes('and their tests')");
+    await wait("document.activeElement?.textContent==='Edit note'");
+    await click('Copy for agent');
+    await wait('window.copied.length===2');
+    assert.match(await js<string>('window.copied[1]'), /Rename these constants and their tests/);
+    // Individual deletion is reversible and returns focus to its recovery action.
+    await click('Remove note');
+    await wait("document.querySelectorAll('.agent-brief-comment').length===2");
+    await wait("document.activeElement?.textContent.includes('Undo deletion')");
+    await click('Undo deletion');
+    await wait("document.querySelectorAll('.agent-brief-comment').length===3");
 
     // Everything survives leaving, and a full reload. The fixture clears storage unless told to keep it.
     await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary&keep-progress`);
@@ -215,12 +242,14 @@ void app.whenReady().then(async () => {
     await wait("!!document.querySelector('.stack-back')");
     await wait("document.querySelector('.agent-brief-empty')?.textContent.includes('Add local note')");
     assert.equal(await tabCount(), null);
+    assert.match(await js<string>("document.querySelector('.agent-brief-scope-link').textContent"), /View 3 notes saved for the stack/);
     await click('Open Changes');
     await wait("!!document.querySelector('.commit-stream-row[data-active=true]')");
     await js('window.openFile("worker.ts")');
     await wait('!!window.lineNumber(36)');
     await js('window.lineNumber(36).click()');
     await wait("!!document.querySelector('.changes-comment-composer textarea')");
+    await js("document.querySelector('.changes-comment-destination input[value=local]').click()");
     await js("window.fill('.changes-comment-composer textarea','Only about this PR.')");
     await click('Add local note');
     await wait("document.querySelector('.brief-tab-count')?.textContent==='1'");
@@ -230,35 +259,80 @@ void app.whenReady().then(async () => {
     await wait('window.copied.length===1');
     assert.match(await js<string>('window.copied[0]'), /\*\*Single PR\*\* \(1 comment\)/);
     assert.doesNotMatch(await js<string>('window.copied[0]'), /Rename these constants/);
-    await click('Copy and delete notes');
-    await wait("document.querySelector('.agent-brief')?.textContent.includes('Copied and deleted')");
+    await js("(()=>{const b=document.querySelector('[aria-label=\"Note actions\"]');b.focus();b.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}))})()");
+    await wait("!!document.querySelector('[role=menuitem]')");
+    await js("[...document.querySelectorAll('[role=menuitem]')].find(e=>e.textContent.includes('Delete all notes')).click()");
+    await wait("!!document.querySelector('.agent-brief-empty')");
     assert.equal(await tabCount(), null);
     await click('Back to stack');
     await wait("document.querySelector('.brief-tab-count')?.textContent==='3'");
 
-    // Copy and delete keeps everything if the clipboard refuses.
+    // Copy failure is persistent, announced, and never deletes anything.
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     await js('window.clipboardFails=true');
-    await click('Copy and delete notes');
-    await wait("document.querySelector('.agent-brief [role=alert]')?.textContent.includes('your notes were kept')");
+    await click('Copy for agent');
+    await wait("document.querySelector('.agent-brief [role=alert]')?.textContent.includes('still saved here')");
     assert.equal(await js("document.querySelectorAll('.agent-brief-comment').length"), 3);
+    await new Promise(r => setTimeout(r, 1700));
+    assert.equal(await js("!!document.querySelector('.agent-brief [role=alert]')"), true);
+    await js('window.clipboardFails=false');
+    await click('Copy for agent');
+    await wait("!document.querySelector('.agent-brief [role=alert]')");
 
-    // Delete asks first, and Keep backs out.
-    await js("[...document.querySelectorAll('.agent-brief-actions button')].at(-1).click()");
-    await wait("document.querySelector('.agent-brief-confirm')?.textContent.includes('Delete 3 notes?')");
-    await click('Keep notes');
-    assert.equal(await js("document.querySelectorAll('.agent-brief-comment').length"), 3);
-    await js("[...document.querySelectorAll('.agent-brief-actions button')].at(-1).click()");
-    await wait("!!document.querySelector('.agent-brief-confirm')");
-    await capture('delete-confirm');
-    await js("document.querySelector('.agent-brief-confirm [data-variant=destructive]').click()");
-    await wait("document.querySelector('.agent-brief')?.textContent.includes('Deleted the notes')");
+    // Bulk deletion moves behind the menu and is recoverable independently of the clipboard.
+    await js("(()=>{const b=document.querySelector('[aria-label=\"Note actions\"]');b.focus();b.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}))})()");
+    await wait("!!document.querySelector('[role=menuitem]')");
+    await js("[...document.querySelectorAll('[role=menuitem]')].find(e=>e.textContent.includes('Delete all notes')).click()");
+    await wait("document.querySelector('.agent-brief-undo')?.textContent.includes('3 notes deleted')");
+    await wait("document.activeElement?.textContent.includes('Undo deletion')");
+    await capture('deleted-with-undo');
     assert.equal(await tabCount(), null);
-    assert.equal(
-      await js("Object.keys(localStorage).filter(k=>k.startsWith('gnosis-agent-brief:')).length"),
-      0,
-      'Deleting removes the saved brief'
-    );
+    await click('Undo deletion');
+    await wait("document.querySelectorAll('.agent-brief-comment').length===3");
+
+    // Recovery survives scope navigation, and cannot mix a PR notebook with stack notes.
+    await js("document.querySelector('.stack-scope-bar [role=combobox], .stack-scope-bar button').click()");
+    await wait("!!document.querySelector('.stack-scope-popup [role=option]')");
+    await js("[...document.querySelectorAll('.stack-scope-popup [role=option]')].find(o=>/#\\d+/.test(o.textContent)).click()");
+    await wait("document.querySelector('.agent-brief-undo')?.textContent.includes('1 note deleted')");
+    await click('Undo deletion');
+    await wait("document.querySelectorAll('.agent-brief-comment').length===1");
+    assert.match(await js<string>("document.querySelector('.agent-brief-comment').textContent"), /Only about this PR/);
+    await click('View 3 notes saved for the stack');
+    await wait("document.querySelectorAll('.agent-brief-comment').length===3");
+    assert.match(await js<string>("document.querySelector('.agent-brief-related').textContent"), /1 note in PR #/);
+    // Current visual evidence in both themes, narrow windows, and 200% scaling.
+    await js("document.querySelector('.agent-brief').scrollTop=0");
+    await capture('brief');
+    await js("document.documentElement.classList.add('dark')");
+    await capture('brief-dark');
+    await js("document.documentElement.classList.remove('dark')");
+    win.setSize(640, 800);
+    await capture('brief-narrow');
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true);
+    win.setSize(1280, 800);
+    win.webContents.setZoomFactor(2);
+    await capture('brief-zoom');
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true);
+    win.webContents.setZoomFactor(1);
+    // Long paths, multiline code and non-ASCII notes must wrap without expanding the workspace.
+    await js(`(async()=>{
+      const {readAgentBrief,updateAgentBrief}=await import('/lib/agent-brief.ts');
+      const key=Object.keys(localStorage).find(k=>k.startsWith('gnosis-agent-brief:')&&k.includes('stack:'));
+      const subject=key.slice('gnosis-agent-brief:'.length);
+      await updateAgentBrief(subject,current=>current.map((note,i)=>i===0?{...note,
+        path:'src/'+('long-directory-name/'.repeat(12))+'worker.ts',
+        body:'Check this boundary before retrying. '.repeat(12)+'中文 • العربية • 👩🏽‍💻',
+        code:Array.from({length:40},(_,i)=>'const value'+i+' = '+i+';').join('\\n')}:note));
+    })()`);
+    await wait("!!document.querySelector('.agent-brief-code')");
+    win.setSize(920, 800);
+    await js("document.querySelector('.agent-brief').scrollTop=0");
+    await capture('brief-long');
+    win.setSize(640, 800);
+    await js("document.querySelector('.agent-brief-code summary').click()");
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true);
+    assert.equal(await js("document.querySelector('.agent-brief').scrollWidth<=document.querySelector('.agent-brief').clientWidth"), true);
     console.log('agent brief browser test passed');
   } catch (error) {
     console.error(error);

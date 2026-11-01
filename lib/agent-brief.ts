@@ -229,6 +229,8 @@ const values = new Map<string, AgentBriefComment[]>();
 const listeners = new Set<() => void>();
 const pending = new Map<string, Promise<void>>();
 const empty: AgentBriefComment[] = [];
+// Keep recovery across tab/scope changes for this app session, independently of the clipboard.
+const deleted = new Map<string, AgentBriefComment[]>();
 // A brief belongs to this computer and never touches GitHub, so it is not tied to a signed-in account.
 const keyFor = (subjectId: string) => `gnosis-agent-brief:${subjectId}`;
 function isComment(value: unknown): value is AgentBriefComment {
@@ -276,6 +278,32 @@ export async function updateAgentBrief(subjectId: string, fn: (current: AgentBri
     if (pending.get(key) === save) pending.delete(key);
   }
 }
+export async function removeAgentBriefNotes(subjectId: string, ids: ReadonlySet<string>) {
+  let removed: AgentBriefComment[] = [];
+  await updateAgentBrief(subjectId, (current) => {
+    removed = current.filter((note) => ids.has(note.id));
+    return current.filter((note) => !ids.has(note.id));
+  });
+  if (!removed.length) return;
+  const previous = deleted.get(subjectId) ?? empty;
+  deleted.set(subjectId, [...previous.filter((note) => !ids.has(note.id)), ...removed]);
+  listeners.forEach((callback) => callback());
+}
+export async function restoreAgentBriefNotes(subjectId: string, ids?: ReadonlySet<string>) {
+  const restoring = (deleted.get(subjectId) ?? empty).filter((note) => !ids || ids.has(note.id));
+  if (!restoring.length) return;
+  await updateAgentBrief(subjectId, (current) => {
+    const existing = new Set(current.map((note) => note.id));
+    return [...current, ...restoring.filter((note) => !existing.has(note.id))];
+  });
+  // Preserve notes deleted while the restore was being written.
+  const restored = new Set(restoring);
+  deleted.set(
+    subjectId,
+    (deleted.get(subjectId) ?? empty).filter((note) => !restored.has(note))
+  );
+  listeners.forEach((callback) => callback());
+}
 const subscribe = (callback: () => void) => {
   listeners.add(callback);
   return () => {
@@ -284,8 +312,12 @@ const subscribe = (callback: () => void) => {
 };
 export function useAgentBrief(subjectId: string) {
   const comments = useSyncExternalStore(subscribe, () => readAgentBrief(subjectId));
+  const removed = useSyncExternalStore(subscribe, () => deleted.get(subjectId) ?? empty);
   return {
     comments,
+    removed,
+    remove: (ids: ReadonlySet<string>) => removeAgentBriefNotes(subjectId, ids),
+    restore: (ids?: ReadonlySet<string>) => restoreAgentBriefNotes(subjectId, ids),
     update: (fn: (current: AgentBriefComment[]) => AgentBriefComment[]) => updateAgentBrief(subjectId, fn),
   };
 }
