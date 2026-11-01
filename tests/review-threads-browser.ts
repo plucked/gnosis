@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -35,8 +36,8 @@ void app.whenReady().then(async () => {
   try {
     const url = process.env.GNOSIS_WORKBENCH_URL;
     if (!url) throw new Error('Missing fixture URL');
-    await win.loadURL(url + '?threads');
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, url + '?threads');
+    await waitForWorkbenchQueue(win.webContents);
     await js(
       "[...document.querySelectorAll('.queue-row-main')].find(b=>b.textContent.includes('Introduce a bounded')).click()"
     );
@@ -59,7 +60,7 @@ void app.whenReady().then(async () => {
       'Expanding a viewed file does not clear its progress'
     );
     // Reopening the review restores its viewed files collapsed, including after a renderer reload.
-    await win.loadURL(url + '?threads&keep-progress');
+    await loadWorkbenchPage(win, url + '?threads&keep-progress');
     await wait("document.querySelectorAll('.queue-item').length===7");
     await js(
       "[...document.querySelectorAll('.queue-row-main')].find(b=>b.textContent.includes('Introduce a bounded')).click()"
@@ -95,7 +96,10 @@ void app.whenReady().then(async () => {
     );
     await toggleExplanations();
     await wait("document.querySelectorAll('.inline-code-explanation').length===1");
-    assert.equal(await js('document.body.dataset.discussionPr'), 'https://github.com/klang/engine/pull/121');
+    assert.ok(
+      await js("JSON.parse(document.body.dataset.discussionPrs ?? '[]').includes('https://github.com/klang/engine/pull/121')"),
+      'The displayed file source is fetched even when other stack discussions refresh too'
+    );
     assert.equal(await js("document.querySelectorAll('.review-diff .github-thread').length"), 3);
     assert.equal(await js("document.querySelectorAll('.github-unplaced-threads .github-thread').length"), 2);
     assert.equal(await js("document.querySelectorAll('.review-diff .github-thread[open]').length"), 2);

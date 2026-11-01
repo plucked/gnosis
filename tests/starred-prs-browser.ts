@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import { menuAction } from './entry-menu-helpers';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
@@ -39,15 +40,15 @@ void app.whenReady().then(async () => {
     fs.writeFileSync(path.join(dir, name + '.png'), (await win.webContents.capturePage()).toPNG());
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
-    await wait("document.querySelectorAll('.queue-item').length===7");
-    const prior = await js("document.querySelector('.queue-item.is-selected .queue-title')?.textContent??null");
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await waitForWorkbenchQueue(win.webContents);
+    const prior = await js("document.querySelector('.briefing-panel h2')?.textContent??null");
     await click('Star PR #152');
     await wait("!!document.querySelector('.queue-item:has([aria-label=\"Actions for PR #152\"]) .entry-star-marker')");
     assert.equal(
-      await js("document.querySelector('.queue-item.is-selected .queue-title')?.textContent??null"),
+      await js("document.querySelector('.briefing-panel h2')?.textContent??null"),
       prior,
-      'Starring does not navigate'
+      'Starring selects the menu target without navigating the briefing'
     );
     assert.equal(await js("document.querySelector('.queue-section-title').textContent.trim()"), 'Starred 1');
     await capture('queue-pinned');
@@ -55,7 +56,7 @@ void app.whenReady().then(async () => {
     await wait("document.querySelectorAll('.queue-item').length===1");
     await capture('starred-list');
     await wait('window.electronAPI.workbenchQueue().then(q=>q.filters.starredOnly)');
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
     await wait(
       "document.querySelector('[title=Starred]')?.getAttribute('aria-current')==='page' && document.querySelectorAll('.queue-item').length===1"
     );

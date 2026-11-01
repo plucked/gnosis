@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,10 +67,10 @@ void app.whenReady().then(async () => {
       const prefs=await window.electronAPI.loadPreferences();await window.electronAPI.savePreferences({...prefs,stackChangesMode:'combined'});
     })()`);
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary`);
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await setup();
     await openStack();
 
@@ -195,8 +196,8 @@ void app.whenReady().then(async () => {
     await wait("document.querySelector('.agent-brief').textContent.includes('and their tests')");
 
     // Everything survives leaving, and a full reload. The fixture clears storage unless told to keep it.
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary&keep-progress`);
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary&keep-progress`);
+    await waitForWorkbenchQueue(win.webContents);
     await setup();
     await openStack();
     await wait("document.querySelector('.brief-tab-count')?.textContent==='3'");

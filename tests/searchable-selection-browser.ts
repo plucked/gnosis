@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -13,6 +14,7 @@ void app.whenReady().then(async () => {
     show: true,
     webPreferences: { backgroundThrottling: false, sandbox: true, contextIsolation: true },
   });
+  win.webContents.on('console-message', ({ level, message }) => { if (level === 'error') console.error(message); });
   const js = <T = unknown>(code: string) => win.webContents.executeJavaScript(code) as Promise<T>;
   const wait = async (code: string) => {
     for (let i = 0; i < 200; i++) {
@@ -47,10 +49,10 @@ void app.whenReady().then(async () => {
   try {
     const fixtureUrl = process.env.GNOSIS_WORKBENCH_URL;
     assert.ok(fixtureUrl, 'GNOSIS_WORKBENCH_URL must point to the running fixture');
-    await win.loadURL(fixtureUrl + '?filters');
+    await loadWorkbenchPage(win, fixtureUrl + '?filters');
     win.webContents.setZoomFactor(1);
     win.focus();
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js('document.querySelector(\'[aria-label="Filter repository"]\').focus()');
     await key('e');
     await wait("document.activeElement?.getAttribute('data-slot')==='combobox-input'");
@@ -128,11 +130,34 @@ void app.whenReady().then(async () => {
     await key('Enter');
     await wait("!document.querySelector('[data-slot=combobox-content]')");
     await click('[data-slot=dialog-close]');
+    // Model and effort are saved together, including when changing harnesses.
+    await js("window.selectOption('[aria-label=\"Review model\"]', 'gpt-6.1-sol')");
+    await js("window.selectOption('[aria-label=\"Review model effort\"]', 'ultra')");
+    assert.equal(await js("window.electronAPI.loadPreferences().then(p=>p.effort)"), 'ultra');
+    await js("window.selectOption('[aria-label=\"Review model\"]', 'gpt-6-luna')");
+    assert.equal(await js("window.electronAPI.loadPreferences().then(p=>p.effort)"), 'max');
+    await click('[aria-label="Review model effort"]');
+    assert.equal(await js("!!document.querySelector('[role=option][data-value=ultra]')"), false);
+    await key('Escape');
+    await click('[aria-label="Settings"]');
+    await wait("!!document.querySelector('[aria-label=\"Use a different model for briefings\"]')");
+    await js("window.selectOption('[aria-label=\"Briefing model effort\"]', 'medium')");
+    await js("[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent==='Review').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
+    await wait("!!document.querySelector('[aria-label=\"Explanation model effort\"]')");
+    assert.equal(await js("document.querySelector('[aria-label=\"Explanation model effort\"]').value"), 'max');
+    await js("window.selectOption('[aria-label=\"Explanation model effort\"]', 'xhigh')");
+    await capture('effort-settings-dark');
+    await click('[data-slot=dialog-close]');
+    assert.equal(await js("window.electronAPI.loadPreferences().then(p=>p.effort==='xhigh'&&p.proactiveEffort==='medium')"), true);
+    await click('[aria-label="Settings"]');
+    await wait("document.querySelector('[aria-label=\"Briefing model effort\"]')?.value==='medium'");
+    await capture('briefing-effort-dark');
+    await click('[data-slot=dialog-close]');
     // A saved selection stays visible even when the cached option list no longer contains it.
     await js(
       "window.electronAPI.workbenchQueue().then(q=>window.electronAPI.workbenchSetFilters({...q.filters,author:'contributor-no-longer-in-the-queue'}))"
     );
-    await win.loadURL(fixtureUrl + '?filters');
+    await loadWorkbenchPage(win, fixtureUrl + '?filters');
     await wait("!!document.querySelector('.queue-filter-toggle')");
     await js("document.documentElement.classList.add('dark')");
     await click('.queue-filter-toggle');

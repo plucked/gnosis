@@ -347,23 +347,31 @@ export interface StartReviewResult {
 export type { ClaudeModel, CodexModel, ModelId, Provider } from './models';
 
 export interface Preferences {
+  repositorySettings?: import('./repository-settings').RepositorySettingsMap;
+  /** Default per-repository cap. briefingDailyLimit remains the overall cap. */
+  repositoryBriefingDailyLimit?: number;
   savedReviewSort?: import('./pr-list-sort').PrListSort;
   githubCacheSizeMB?: number;
   ignoreDependabotPrs?: boolean;
   /** Days since the last PR update; zero disables the global inactivity limit. */
   prInactivityDays?: number;
+  /** Default automation policy; individual repositories may override it. */
   autoBriefings?: boolean;
+  /** Overall cap on automatic attempts. Explicit requests do not count. */
   briefingDailyLimit?: number;
   instructions: string;
   provider: Provider;
   model: ModelId;
   thinking: boolean;
+  effort?: import('./effort').Effort;
   smartImports: boolean;
   reviewSuggestions: boolean;
   enableTools: boolean;
   enableWebResearch: boolean;
   proactiveMode: boolean;
   watchedRepos: string[];
+  /** Applied at renderer startup, before any diffs mount. */
+  diffHighlighter?: import('./diff-highlighter-preference').DiffHighlighter;
   codeTheme: string;
   codeFont: string;
   claudePath: string;
@@ -389,6 +397,7 @@ export interface Preferences {
   proactiveProvider: Provider;
   proactiveModel: ModelId;
   proactiveThinking: boolean;
+  proactiveEffort?: import('./effort').Effort;
   educationMode: boolean;
   claudeContext: boolean;
   /** True once the user has opted in to using Gnosis without a GitHub
@@ -411,6 +420,7 @@ export interface SendSlideChatRequest {
   question: string;
   provider: Provider;
   model: ModelId;
+  effort?: import('./effort').Effort;
 }
 
 export interface GenerateReviewRequest {
@@ -422,6 +432,7 @@ export interface GenerateReviewRequest {
   model: ModelId;
   instructions?: string;
   thinking?: boolean;
+  effort?: import('./effort').Effort;
   smartImports?: boolean;
   reviewSuggestions?: boolean;
   webResearch?: boolean;

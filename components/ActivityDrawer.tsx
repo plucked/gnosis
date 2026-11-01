@@ -86,7 +86,9 @@ export function ActivityDrawer({
           const next = await window.electronAPI.listActivity();
           if (alive.current && version === refreshVersion.current) {
             setTasks(next);
-            for (const task of newCompletions(next)) {
+            const conflictWorkspace = document.querySelector<HTMLElement>('.conflict-workspace');
+            const activeConflict = conflictWorkspace ? { url: conflictWorkspace.dataset.conflictUrl, id: conflictWorkspace.dataset.conflictId } : undefined;
+            for (const task of newCompletions(next, activeConflict)) {
               if (task.kind === 'pr-action') {
                 toast.add({ title: task.title, description: task.detail, type: task.status === 'failed' ? 'error' : 'success' });
                 continue;
@@ -131,12 +133,16 @@ export function ActivityDrawer({
   useEffect(() => {
     alive.current = true;
     void refresh();
-    const timer = setInterval(() => void refresh(), 2000);
+    const stopPreload = inspectionData.subscribe(() => setPreloadTask(inspectionData.activity()));
+    const stop = window.electronAPI.githubSyncVersion === 1 ? window.electronAPI.onActivityChanged?.(() => void refresh()) : undefined;
+    const timer = setInterval(() => void refresh(), stop ? 60_000 : 2000);
     return () => {
       alive.current = false;
       refreshVersion.current++;
       refreshRequest.current = null;
       clearInterval(timer);
+      stop?.();
+      stopPreload();
     };
   }, [refresh]);
   const close = () => {

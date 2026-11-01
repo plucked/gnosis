@@ -1,3 +1,4 @@
+import { automaticBriefingBlock } from '../../lib/repository-settings';
 import { setupViews, setupPreferences, type OnboardingState, type SetupDraft } from '../../lib/onboarding';
 import { checksMocks } from './pr-checks';
 import { markdownBefore, markdownAfter, markdownFiles } from './markdown-review';
@@ -321,7 +322,7 @@ if (new URLSearchParams(location.search).has('filters')) {
     }
 }
 if (polishScenario) {
-  items[0].briefing = { key: 'paused', status: 'paused', updatedAt: date };
+  items[0].briefing = { key: 'paused', status: 'paused', pauseDetail: 'Daily briefing attempt limit reached. Resets at midnight.', updatedAt: date };
   // A long file followed by a different stack member exercises sticky attribution.
   const first = review.slides[0].diffHunks[0];
   first.content =
@@ -356,6 +357,7 @@ let prefs: Preferences = {
   briefingDailyLimit: 10,
   watchedRepos: new URLSearchParams(location.search).has('ftue') ? [] : ['klang/engine'],
   codeTheme: 'github-light',
+  diffHighlighter: (sessionStorage.getItem('fixture-diff-highlighter') || undefined) as Preferences['diffHighlighter'],
   codeFont: 'jetbrains-mono',
   claudePath: '',
   codexPath: '',
@@ -581,12 +583,15 @@ const mocks = {
   },
   loadHarnessEnvironment: async () => ({ claude: [], codex: [] }),
   saveHarnessEnvironment: async () => {},
+  onPreferencesChanged: () => () => {},
+  onWorkbenchChanged: () => () => {},
   getLocalClones: async () => [],
-  addLocalClone: async () => [],
-  removeLocalClone: async () => [],
+  connectLocalClone: () => Promise.resolve([]),
+  disconnectLocalClone: () => Promise.resolve([]),
   loadPreferences: () => Promise.resolve(prefs),
   savePreferences: (next: Preferences) => {
     prefs = next;
+    if (next.diffHighlighter) sessionStorage.setItem('fixture-diff-highlighter', next.diffHighlighter);
     sessionStorage.setItem('fixture-inactivity-days', JSON.stringify(next.prInactivityDays ?? 30));
     if (onboardingScenario) {
       sessionStorage.setItem('fixture-first-run-seen', String(next.firstRunSeen));
@@ -741,6 +746,10 @@ if (new URLSearchParams(location.search).has('checks')) {
     readiness: value.readiness ? { ...value.readiness, mergeState: 'BLOCKED' } : undefined,
   }));
 }
+if (new URLSearchParams(location.search).has('github-sync')) {
+  const { installSyncFixture } = await import('./github-sync');
+  installSyncFixture(mocks, items);
+}
 Object.defineProperty(window, 'electronAPI', {
   value: new Proxy(mocks, {
     get: (target, key) => (key in target ? target[key as keyof typeof target] : () => Promise.resolve()),
@@ -756,6 +765,8 @@ for (const topic of review.slides)
       polishScenario ? 'aurora-x' : 'github-dark',
       hunk.hunkHeader
     );
+const { initializeDiffHighlighter } = await import('../../lib/diff-highlighter');
+initializeDiffHighlighter(prefs);
 const { App } = await import('../../src/App');
 const root = document.getElementById('root');
 if (root) {
@@ -767,6 +778,9 @@ if (root) {
 
 function visibleFixtureItems() {
   return items.flatMap(item => {
+    if (polishScenario && item.briefing?.status === 'paused') {
+      item = { ...item, briefing: { ...item.briefing, pauseDetail: automaticBriefingBlock(item.subject, prefs, prefs.briefingDailyLimit ?? 10, {}) } };
+    }
     const subject = withoutMutedMembers(item.subject, fixtureMutedUrls());
     if (!subject || !matchesPrInactivity(subject, normalizePrInactivityDays(prefs.prInactivityDays), Date.now(), new Set(fixtureStars.map(entry => entry.member.url)))) return [];
     if (subject === item.subject) return [item];

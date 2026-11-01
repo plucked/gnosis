@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import { contrastRatio } from '../lib/code-contrast';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
@@ -45,10 +46,10 @@ void app.whenReady().then(async () => {
     fs.writeFileSync(path.join(shots, name + '.png'), (await window.webContents.capturePage()).toPNG());
   };
   try {
-    await window.loadURL(fixtureUrl);
+    await loadWorkbenchPage(window, fixtureUrl);
     window.webContents.debugger.attach('1.3');
     await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await wait("document.querySelectorAll('.queue-item').length === 7");
+    await waitForWorkbenchQueue(window.webContents);
     assert.equal(await js(`document.fonts.load('650 22px "Plus Jakarta Sans"').then(f=>f.length)`), 1);
     assert.equal(await js(`document.fonts.load('400 13px "JetBrains Mono"').then(f=>f.length)`), 1);
     assert.equal(
@@ -57,7 +58,7 @@ void app.whenReady().then(async () => {
     );
 
     await js(
-      `window.selectOption('[aria-label="Review model"]', 'codex:gpt-6-astra')`
+      `window.selectOption('[aria-label="Review model"]', 'gpt-6-astra')`
     );
     assert.equal(await js('window.electronAPI.loadPreferences().then(p => p.model)'), 'gpt-6-astra');
     assert.equal(
@@ -281,13 +282,13 @@ void app.whenReady().then(async () => {
     await wait("!!document.querySelector('.review-tool-slot iframe') && !document.querySelector('.activity-drawer')");
     // Critique regressions: use realistic unavailable states and long cross-PR code.
     window.setSize(1280, 800);
-    await window.loadURL(fixtureUrl + '?polish');
+    await loadWorkbenchPage(window, fixtureUrl + '?polish');
     await wait("document.querySelectorAll('.queue-item').length === 7");
     await js(
       "[...document.querySelectorAll('.queue-row-main')].find(b=>b.textContent.includes('Introduce a bounded')).click()"
     );
     await wait("document.querySelector('.saved-briefing')?.textContent.includes('Cancellation must release')");
-    match(await js("document.querySelector('.briefing-status').textContent"), /Daily briefing attempt limit reached/);
+    match(await js("document.querySelector('.briefing-status').textContent"), /Overall daily automatic briefing limit reached/);
     match(await js("document.querySelector('.saved-briefing').textContent"), /latest changes are not verified/);
     assert.equal(await js("[...document.querySelectorAll('button')].some(b=>b.textContent==='Open saved')"), false);
     await wait("document.querySelectorAll('.member-status-error').length === 3");
@@ -309,7 +310,10 @@ void app.whenReady().then(async () => {
       "[...document.querySelectorAll('[role=tab]')].find(b=>b.textContent==='Appearance').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}))"
     );
     await wait("document.querySelector('[role=tabpanel][data-state=active]')?.textContent.includes('Code font')");
-    assert.equal(await js("document.querySelectorAll('[role=tabpanel][data-state=active] [data-slot=combobox-trigger]').length"), 2);
+    assert.deepEqual(
+      await js("[...document.querySelectorAll('[role=tabpanel][data-state=active] [data-slot=combobox-trigger]')].map(control => control.getAttribute('aria-label'))"),
+      ['Code font', 'Code theme', 'Syntax highlighting']
+    );
     match(await js("document.querySelector('[role=tabpanel][data-state=active]').textContent"), /Light/);
     window.setSize(800, 700);
     await capture('settings-appearance-narrow');
@@ -408,7 +412,7 @@ void app.whenReady().then(async () => {
     );
     // First use: optional setup, terminology, recovery, and a real review entry point.
     window.setSize(1280, 800);
-    await window.loadURL(fixtureUrl + '?onboarding');
+    await loadWorkbenchPage(window, fixtureUrl + '?onboarding');
     await wait("!!document.querySelector('.workbench-connect')");
     if (await js("!!document.querySelector('.github-auth-dialog')")) {
       await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
@@ -435,7 +439,7 @@ void app.whenReady().then(async () => {
     await js('document.querySelector(\'[aria-label="Dismiss getting started"]\').click()');
     await wait("!document.querySelector('.getting-started')");
     assert.equal(await js('window.electronAPI.loadPreferences().then(p=>p.firstRunSeen)'), true);
-    await window.loadURL(fixtureUrl + '?onboarding');
+    await loadWorkbenchPage(window, fixtureUrl + '?onboarding');
     await wait("!!document.querySelector('.workbench-connect')");
     if (await js("!!document.querySelector('.github-auth-dialog')")) {
       await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
@@ -587,7 +591,7 @@ void app.whenReady().then(async () => {
     await capture('github-backoff-dark');
     await js("document.documentElement.classList.remove('dark')");
     await capture('github-backoff-light');
-    await window.loadURL(fixtureUrl + '?filters');
+    await loadWorkbenchPage(window, fixtureUrl + '?filters');
     window.setSize(1280, 800);
     await wait("document.querySelectorAll('.queue-item').length === 7");
     await js("document.querySelector('.queue-filter-toggle').click()");
@@ -646,7 +650,7 @@ void app.whenReady().then(async () => {
     await js("document.querySelector('.queue-disclosure').click()");
     assert.equal(await js("document.querySelectorAll('.queue-member').length"), 3);
     await capture('queue-filters-stack');
-    await window.loadURL(fixtureUrl + '?mine');
+    await loadWorkbenchPage(window, fixtureUrl + '?mine');
     window.setSize(1280, 800);
     await wait("document.querySelectorAll('.queue-item').length === 7");
     await js("document.querySelector('.queue-filter-toggle').click()");
@@ -681,7 +685,7 @@ void app.whenReady().then(async () => {
     await js("document.querySelector('.queue-filter-toggle').click()");
     await selectFilter('Show', 'all');
     await wait("document.querySelectorAll('.queue-item').length === 7");
-    await window.loadURL(fixtureUrl + '?labels');
+    await loadWorkbenchPage(window, fixtureUrl + '?labels');
     window.setSize(1280, 800);
     await wait("document.querySelectorAll('.queue-item').length === 7");
     await js("document.querySelector('.queue-disclosure:not(:disabled)').click()");
@@ -728,7 +732,7 @@ void app.whenReady().then(async () => {
     window.setSize(800, 700);
     await capture('pr-labels-dark-narrow');
     assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'), true);
-    await window.loadURL(fixtureUrl + '?views');
+    await loadWorkbenchPage(window, fixtureUrl + '?views');
     window.setSize(1280, 800);
     await wait("document.querySelectorAll('.queue-item').length === 7");
     const enterViewName = async (name: string) => {
@@ -821,7 +825,7 @@ void app.whenReady().then(async () => {
     await wait(
       "document.querySelectorAll('.saved-view-row').length === 2 && document.querySelectorAll('.queue-item').length === 7"
     );
-    await window.loadURL(fixtureUrl + '?stacks');
+    await loadWorkbenchPage(window, fixtureUrl + '?stacks');
     await wait("document.querySelectorAll('.queue-item').length === 7");
     const navigate = async (name: string) => {
       await js(
@@ -853,7 +857,7 @@ void app.whenReady().then(async () => {
     // Background generation never replaces the current review. Completion toasts
     // remain actionable after navigation and open the exact saved topic.
     window.setSize(1280, 800);
-    await window.loadURL(fixtureUrl + '?notifications');
+    await loadWorkbenchPage(window, fixtureUrl + '?notifications');
     await wait("document.querySelectorAll('.queue-item').length === 7");
     await wait("document.querySelector('.activity-summary')?.textContent.includes('2 running')");
     assert.equal(await js("document.querySelectorAll('[data-slot=toast]').length"), 0, 'No historical ready toasts');

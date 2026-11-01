@@ -1,3 +1,4 @@
+import type { GitHubSyncInterest, GitHubSyncEvent } from '../lib/github-sync';
 import type { OnboardingState, SetupDraft } from '../lib/onboarding';
 import type { HarnessEnvironment, EnvironmentVariable } from '../lib/harness-environment';
 import type { CheckTarget, CheckSelection, ChecksOptions, PrChecks, CheckDetails, CheckLog } from '../lib/pr-checks';
@@ -43,6 +44,21 @@ import type {
 } from '../lib/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  githubSyncVersion: 1 as const,
+  watchGitHub: (id: string, interest: GitHubSyncInterest | null) => ipcRenderer.send('github-sync-watch', id, interest),
+  onGitHubSync: (callback: (event: GitHubSyncEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: GitHubSyncEvent) => callback(value);
+    ipcRenderer.on('github-sync', handler);
+    return () => ipcRenderer.removeListener('github-sync', handler);
+  },
+  onWorkbenchChanged: (callback: () => void) => {
+    ipcRenderer.on('workbench-changed', callback);
+    return () => ipcRenderer.removeListener('workbench-changed', callback);
+  },
+  onActivityChanged: (callback: () => void) => {
+    ipcRenderer.on('activity-changed', callback);
+    return () => ipcRenderer.removeListener('activity-changed', callback);
+  },
   getPrBadgePreview: (url: string): Promise<import('../lib/pr-badge-preview').PrBadgePreview | null> => ipcRenderer.invoke('pr-badge-preview', url),
   loadFileFilters: (): Promise<FileFilterState> => ipcRenderer.invoke('load-file-filters'),
   updateFileFilters: (action: FileFilterAction): Promise<FileFilterState> => ipcRenderer.invoke('update-file-filters', action),
@@ -193,6 +209,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offChatToolUse: (): void => {
     ipcRenderer.removeAllListeners('chat-tool-use');
   },
+  conflictResolution: (request: import('../lib/conflict-resolution').ConflictRequest): Promise<import('../lib/conflict-resolution').ConflictReply> => ipcRenderer.invoke('conflict-resolution', request),
   getPrActionState: (url: string, force = false): Promise<import('../lib/pr-actions').PrActionState> => ipcRenderer.invoke('get-pr-action-state', url, force),
   getStackMergePlan: (urls: string[]): Promise<import('../lib/pr-actions').PrMergePlan> => ipcRenderer.invoke('get-stack-merge-plan', urls),
   performPrAction: (request: import('../lib/pr-actions').PrActionRequest): Promise<import('../lib/pr-actions').PrActionResult> => ipcRenderer.invoke('perform-pr-action', request),
@@ -205,6 +222,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   applyOnboarding: (draft: SetupDraft, account: string | null): Promise<Preferences> => ipcRenderer.invoke('apply-onboarding', draft, account),
   loadHarnessEnvironment: (): Promise<HarnessEnvironment> => ipcRenderer.invoke('load-harness-environment'),
   saveHarnessEnvironment: (provider: import('../lib/models').Provider, variables: EnvironmentVariable[]): Promise<void> => ipcRenderer.invoke('save-harness-environment', provider, variables),
+  onPreferencesChanged: (callback: (prefs: Preferences) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, prefs: Preferences) => callback(prefs);
+    ipcRenderer.on('preferences-changed', handler);
+    return () => { ipcRenderer.removeListener('preferences-changed', handler); };
+  },
   loadPreferences: (): Promise<Preferences> => ipcRenderer.invoke('load-preferences'),
   savePreferences: (prefs: Preferences): Promise<void> => ipcRenderer.invoke('save-preferences', prefs),
   searchPullRequests: (): Promise<PrSearchResult[]> => ipcRenderer.invoke('search-pull-requests'),
@@ -260,8 +282,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrFiles: (prUrl: string): Promise<ChangedFile[]> => ipcRenderer.invoke('get-pr-files', prUrl),
   pickRepoDir: (): Promise<string | null> => ipcRenderer.invoke('pick-repo-dir'),
   getLocalClones: (): Promise<import('../lib/local-clone').LocalCloneStatus[]> => ipcRenderer.invoke('local-clones'),
-  addLocalClone: (directory: string): Promise<import('../lib/local-clone').LocalCloneStatus[]> => ipcRenderer.invoke('add-local-clone', directory),
-  removeLocalClone: (directory: string): Promise<import('../lib/local-clone').LocalCloneStatus[]> => ipcRenderer.invoke('remove-local-clone', directory),
+  connectLocalClone: (repo: string, directory: string): Promise<import('../lib/local-clone').LocalCloneStatus[]> => ipcRenderer.invoke('connect-local-clone', repo, directory),
+  disconnectLocalClone: (repo: string): Promise<import('../lib/local-clone').LocalCloneStatus[]> => ipcRenderer.invoke('disconnect-local-clone', repo),
   listRepoRefs: (
     repoPath: string,
   ): Promise<{

@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -37,8 +38,8 @@ void app.whenReady().then(async () => {
     await wait("!document.querySelector('[role=menu]')");
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await waitForWorkbenchQueue(win.webContents);
     await js(
       'window.__refreshed=[];const original=window.electronAPI.getPrStatus;window.electronAPI.getPrStatus=async(url,force)=>{if(force)window.__refreshed.push(url);return original(url,force)};void 0'
     );
@@ -46,10 +47,14 @@ void app.whenReady().then(async () => {
       const originalStart=window.electronAPI.startReview;
       window.electronAPI.startReview=async request=>{window.__generationRequests.push(request);return originalStart(request)};
       window.electronAPI.workbenchBriefing=async id=>{window.__briefingRequests.push(id);return window.electronAPI.workbenchQueue()};void 0`);
-    const selection = await js("document.querySelector('.queue-item.is-selected .queue-title')?.textContent");
+    await js("document.querySelector('.queue-row-main').click()");
+    await wait("!!document.querySelector('.briefing-panel h2')");
+    const preview = await js("document.querySelector('.briefing-panel h2').textContent");
+    const selection = 'Add trace context to scheduled jobs';
     await rightClick('.queue-row:has([aria-label="Actions for PR #152"])');
     await wait("!!document.querySelector('[role=menuitem]')");
     assert.equal(await js("document.querySelector('.queue-item.is-selected .queue-title')?.textContent"), selection);
+    assert.equal(await js("document.querySelector('.briefing-panel h2')?.textContent"), preview);
     await capture('queue-light');
     await js(
       "[...document.querySelectorAll('[role=menuitem]')].find(e=>e.textContent==='Refresh GitHub status').click()"
@@ -117,7 +122,7 @@ void app.whenReady().then(async () => {
     await menuAction(js, 'Actions for PR #152', 'Refresh GitHub status');
     await wait("document.body.textContent.includes('Could not refresh github status')");
     assert.equal(await js("document.querySelectorAll('.queue-item').length"), 7);
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?views`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?views`);
     await wait("document.querySelectorAll('.queue-item').length===7");
     await js("[...document.querySelectorAll('button')].find(b=>b.textContent==='Save view…').click()");
     await wait("!!document.querySelector('.view-name-form input')");

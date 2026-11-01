@@ -1,3 +1,4 @@
+import { loadWorkbenchPage } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 void app.whenReady().then(async () => {
@@ -7,7 +8,7 @@ void app.whenReady().then(async () => {
     show: true,
     webPreferences: { backgroundThrottling: false, sandbox: true, contextIsolation: true },
   });
-  const js = <T = unknown>(code: string) => window.webContents.executeJavaScript(code) as Promise<T>;
+  const js = <T = unknown>(code: string) => window.webContents.executeJavaScript(code).catch((error: unknown) => { throw Error(`${code}: ${String(error)}`); }) as Promise<T>;
   const wait = async (expression: string) => {
     for (let i = 0; i < 100; i++) {
       if (await js(expression)) return;
@@ -16,7 +17,7 @@ void app.whenReady().then(async () => {
     throw Error(`Timed out: ${expression}`);
   };
   try {
-    await window.loadURL((process.env.GNOSIS_WORKBENCH_URL ?? '').replace('workbench.html', 'inspection-scroll.html'));
+    await loadWorkbenchPage(window, (process.env.GNOSIS_WORKBENCH_URL ?? '').replace('workbench.html', 'inspection-scroll.html'));
     await wait("!!document.querySelector('.changes-file-tree')?.shadowRoot");
     await js(
       `window.deepAll=(selector,root=document)=>[...root.querySelectorAll(selector),...[...root.querySelectorAll('*')].flatMap(e=>e.shadowRoot?window.deepAll(selector,e.shadowRoot):[])];void 0;`

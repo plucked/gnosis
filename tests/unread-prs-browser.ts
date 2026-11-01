@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -61,12 +62,12 @@ void app.whenReady().then(async () => {
     fs.writeFileSync(path.join(dir, `${name}.png`), (await win.webContents.capturePage()).toPNG());
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&labels`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&labels`);
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
     app.focus({ steal: true });
     win.focus();
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js(`(async()=>{
       const cache=(await import('/lib/inspection-cache.ts')).inspectionData;
       const setTargets=cache.setTargets;
@@ -123,7 +124,7 @@ void app.whenReady().then(async () => {
     );
     await wait("document.querySelectorAll('.stack-overview-member').length===3");
     assert.ok(await js<number>(unread(121)), 'Stack overview leaves member PRs unread');
-    await js("document.querySelector('[aria-label=\"Open PR #121\"]').click()");
+    await js("document.querySelector('.stack-overview-member[data-pr-url$=\"/121\"] .stack-member-title > button:not(.entity-badge)').click()");
     await wait(`${unread(121)}.then(n=>n===0)`);
     await click('Back to stack');
     await menuAction(js, 'Stack actions', 'Mark as read');
@@ -152,7 +153,7 @@ void app.whenReady().then(async () => {
     await wait("document.querySelectorAll('.queue-item').length===7");
     await menuAction(js, 'Actions for PR #152', 'Mark as unread');
     await wait("window.electronAPI.workbenchSnapshot().then(q=>q.filters.readStatus==='all')");
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&labels`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&labels`);
     await wait("document.querySelectorAll('.queue-item').length===7");
     assert.equal(await js(unread(152)), 1, 'Unread survives renderer restart');
     await click('Filters');

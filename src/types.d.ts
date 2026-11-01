@@ -1,3 +1,4 @@
+import type { GitHubSyncInterest, GitHubSyncEvent } from '../lib/github-sync';
 import type { OnboardingState, SetupDraft } from '../lib/onboarding';
 import type { HarnessEnvironment, EnvironmentVariable } from '../lib/harness-environment';
 import type { CheckTarget, CheckSelection, ChecksOptions, PrChecks, CheckDetails, CheckLog } from '../lib/pr-checks';
@@ -44,6 +45,11 @@ import type {
 declare global {
   interface Window {
     electronAPI: {
+      githubSyncVersion?: 1;
+      watchGitHub?: (id: string, interest: GitHubSyncInterest | null) => void;
+      onGitHubSync?: (callback: (event: GitHubSyncEvent) => void) => () => void;
+      onWorkbenchChanged?: (callback: () => void) => () => void;
+      onActivityChanged?: (callback: () => void) => () => void;
       clearGitHubCache: () => Promise<void>;
       getPreparedInventories: (revisions: InspectionRevision[]) => Promise<PreparedInventories>;
       preparePrReview: (url: string, revision: { baseSha: string; headSha: string }) => Promise<void>;
@@ -126,6 +132,7 @@ declare global {
       offChatProgress: () => void;
       onChatToolUse: (callback: (toolName: string) => void) => void;
       offChatToolUse: () => void;
+      conflictResolution: (request: import('../lib/conflict-resolution').ConflictRequest) => Promise<import('../lib/conflict-resolution').ConflictReply>;
       getPrActionState: (url: string, force?: boolean) => Promise<import('../lib/pr-actions').PrActionState>;
       getStackMergePlan: (urls: string[]) => Promise<import('../lib/pr-actions').PrMergePlan>;
       performPrAction: (request: import('../lib/pr-actions').PrActionRequest) => Promise<import('../lib/pr-actions').PrActionResult>;
@@ -136,6 +143,7 @@ declare global {
       applyOnboarding: (draft: SetupDraft, account: string | null) => Promise<Preferences>;
       loadHarnessEnvironment: () => Promise<HarnessEnvironment>;
       saveHarnessEnvironment: (provider: import('../lib/models').Provider, variables: EnvironmentVariable[]) => Promise<void>;
+      onPreferencesChanged?: (callback: (prefs: Preferences) => void) => () => void;
       loadPreferences: () => Promise<Preferences>;
       savePreferences: (prefs: Preferences) => Promise<void>;
       searchPullRequests: () => Promise<PrSearchResult[]>;
@@ -173,8 +181,8 @@ declare global {
       getPrFiles: (prUrl: string) => Promise<ChangedFile[]>;
       pickRepoDir: () => Promise<string | null>;
       getLocalClones: () => Promise<import('../lib/local-clone').LocalCloneStatus[]>;
-      addLocalClone: (directory: string) => Promise<import('../lib/local-clone').LocalCloneStatus[]>;
-      removeLocalClone: (directory: string) => Promise<import('../lib/local-clone').LocalCloneStatus[]>;
+      connectLocalClone: (repo: string, directory: string) => Promise<import('../lib/local-clone').LocalCloneStatus[]>;
+      disconnectLocalClone: (repo: string) => Promise<import('../lib/local-clone').LocalCloneStatus[]>;
       listRepoRefs: (
         repoPath: string,
       ) => Promise<{

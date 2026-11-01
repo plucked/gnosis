@@ -7,6 +7,8 @@ import { toast } from './ui/toast';
 
 export interface EntryAction {
   label: string;
+  displayLabel?: string;
+  detail?: string;
   icon?: ReactNode;
   disabled?: boolean;
   destructive?: boolean;
@@ -22,6 +24,7 @@ export function EntryActions({
   restoreFocus = true,
   buttonClassName = '',
   description,
+  onBeforeOpen,
 }: {
   label: string;
   groups: EntryActionGroups;
@@ -29,6 +32,7 @@ export function EntryActions({
   restoreFocus?: boolean;
   buttonClassName?: string;
   description?: ReactNode;
+  onBeforeOpen?: () => void;
 }) {
   const descriptionId = useId();
   const explanation = description ? (
@@ -58,6 +62,7 @@ export function EntryActions({
           <Menu.Item
             key={action.label}
             className="entry-menu-item"
+            aria-label={action.label}
             disabled={pending || action.disabled}
             data-destructive={action.destructive || undefined}
             onClick={() => {
@@ -81,7 +86,8 @@ export function EntryActions({
             }}
           >
             {action.icon}
-            <span>{action.label}</span>
+            <span className="entry-menu-label">{action.displayLabel ?? action.label}</span>
+            {action.detail && <span className="entry-menu-detail" aria-hidden="true">{action.detail}</span>}
           </Menu.Item>
         ))}
       </Menu.Group>
@@ -97,7 +103,7 @@ export function EntryActions({
     onKeyDown: (event: React.KeyboardEvent) => event.stopPropagation(),
   };
   const button = (
-    <Menu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+    <Menu.Root open={menuOpen} onOpenChange={open => { if (open) onBeforeOpen?.(); setMenuOpen(open); }}>
       <Menu.Trigger
         ref={trigger}
         className={`pr-star-button entry-menu-trigger ${buttonClassName}`}
@@ -119,7 +125,7 @@ export function EntryActions({
   );
   if (!children) return button;
   return (
-    <ContextMenu open={contextOpen} onOpenChange={setContextOpen}>
+    <ContextMenu open={contextOpen} onOpenChange={open => { if (open) onBeforeOpen?.(); setContextOpen(open); }}>
       <ContextMenuTrigger
         render={children(button)}
         onContextMenu={(event) => event.stopPropagation()}
@@ -127,6 +133,7 @@ export function EntryActions({
           if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
             event.preventDefault();
             event.stopPropagation();
+            onBeforeOpen?.();
             setContextOpen(false);
             setMenuOpen(true);
           }

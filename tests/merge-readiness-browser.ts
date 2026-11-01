@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import { menuAction } from './entry-menu-helpers';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
@@ -39,8 +40,8 @@ void app.whenReady().then(async () => {
     fs.writeFileSync(path.join(shots, name + '.png'), (await win.webContents.capturePage()).toPNG());
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await waitForWorkbenchQueue(win.webContents);
     await js(`(()=>{
       const signals=window.electronAPI.getQueueSignals, status=window.electronAPI.getPrStatus;
       window.mode='behind';window.forceReads=0;window.failStatus=false;window.reviewDecisions={};window.reviewOverrides={};
@@ -116,8 +117,8 @@ void app.whenReady().then(async () => {
     await capture('queue');
     await js("document.querySelector('.queue-item:has(.queue-disclosure) .queue-row-main').click()");
     await click('Open stack overview');
-    await wait("document.querySelector('.pr-merge-status')?.textContent.includes('Stack has merge blockers')");
-    await js("document.querySelector('[aria-label=\"Open PR #121\"]').click()");
+    await wait("document.querySelector('.pr-merge-status')?.textContent.includes('Not ready to merge')");
+    await js("document.querySelector('.stack-overview-member[data-pr-url$=\"/121\"] .stack-member-title > button:not(.entity-badge)').click()");
     assert.match(
       await js<string>("document.querySelector('.pr-merge-detail').textContent"),
       /Rebase onto queue-0, or merge queue-0/
@@ -126,7 +127,7 @@ void app.whenReady().then(async () => {
     await click('Back to stack');
     await js("window.mode='clean'");
     await click('Refresh status');
-    await wait("document.querySelector('.pr-merge-status')?.textContent.includes('Next: #120 ready to merge')");
+    await wait("document.querySelector('.pr-merge-status')?.textContent.includes('All open PRs meet merge requirements')");
     await capture('stack-next');
     await js(`window.reviewDecisions={
       'https://github.com/klang/engine/pull/120':'CHANGES_REQUESTED',
@@ -134,10 +135,9 @@ void app.whenReady().then(async () => {
       'https://github.com/klang/engine/pull/122':null
     }`);
     await click('Refresh status');
-    await wait("document.querySelector('.pr-merge-status .pr-review-statuses')?.textContent.includes('1 no review decision')");
-    assert.deepEqual(await js("[...document.querySelectorAll('.pr-merge-status .pr-review-status')].map(s=>s.textContent)"),
-      ['1 changes requested', '1 awaiting review', '1 no review decision']);
-    assert.equal(await js("document.querySelector('.stack-overview-member .pr-review-status').textContent"), 'Changes requested');
+    await wait("document.querySelector('.stack-overview-member[data-pr-url$=\"/120\"] .pr-review-status')?.textContent==='Changes requested'");
+    assert.deepEqual(await js("[...document.querySelectorAll('.stack-overview-member .pr-review-status')].map(s=>s.textContent)"),
+      ['No review decision', 'Awaiting review', 'Changes requested']);
     assert.equal(await js("document.querySelector('.stack-overview-member:first-child .merge-readiness-badge')"), null);
     await capture('stack-review-status');
     win.setSize(640, 800);
@@ -149,7 +149,7 @@ void app.whenReady().then(async () => {
     win.setSize(1280, 800);
     await js("document.documentElement.classList.remove('dark')");
     await click('Review queue');
-    await wait("[...document.querySelectorAll('.queue-status-line')].some(e=>e.textContent.includes('changes requested'))");
+    await wait("[...document.querySelectorAll('.queue-status-line')].some(e=>e.textContent.includes('Changes requested'))");
     await capture('queue-review-status');
     await js("document.querySelector('.queue-disclosure').click()");
     await wait("document.querySelector('.queue-member .pr-review-status')?.textContent==='Changes requested'");

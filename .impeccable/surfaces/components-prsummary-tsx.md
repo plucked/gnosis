@@ -31,4 +31,8 @@ The scope switcher precedes the tabs and moves above them in narrow windows. Com
 
 The briefing area identifies missing, queued, generating, paused, failed, cancelled, and disconnected states. Generation requires an explicit action here. Running and queued briefings link to Activity. Failed and cancelled briefings offer retry when available. Paused briefings expose Activity and available generation actions. Detailed errors remain collapsed.
 
-The heading and member rows share one clock for saved status freshness. Expired review status says “Status needs refresh” and exposes a refresh action. Check outcomes distinguish passed, skipped, neutral, running, and attention states. A blocked count remains separate from the next PR's merge readiness.
+The heading and member rows share one clock for saved status freshness. The stack header shows one merge verdict and concise blocker counts. Per-PR review status, check results, and branch state occupy separate aligned columns. Viewed-file progress is secondary metadata beside the branches. The duplicate review-summary row and merge-status rail are removed.
+
+The dependency list uses the full width. Each PR expands in place to show confirmed blockers, uncertain requirements, check results, and scoped actions. Optional cancelled checks and optional branch updates never join the blocker list. Fresh GitHub eligibility remains authoritative. Long check lists show three results before a disclosure for the rest. Ready PRs without warnings omit redundant details.
+
+Below 760px of content width, the status columns move below each PR with visible labels. Smaller layouts stack the labels and values. Actions load permissions on demand, reuse the existing revision guards, and show explicit confirmation. Rerunning failed jobs and rerunning a cancelled workflow are distinct actions. Displaying the summary adds no permission or check-detail requests.

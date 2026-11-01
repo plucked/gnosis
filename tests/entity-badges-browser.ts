@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -41,8 +42,8 @@ void app.whenReady().then(async () => {
   try {
     const url = process.env.GNOSIS_WORKBENCH_URL;
     if (!url) throw Error('Missing fixture');
-    await win.loadURL(url + '?pr-summary&entity-badges');
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, url + '?pr-summary&entity-badges');
+    await waitForWorkbenchQueue(win.webContents);
     await installClipboard();
     assert.equal(await js("document.querySelectorAll('button button, a button').length"), 0);
     const selected = await js("document.querySelector('.queue-row-main[aria-pressed=true]')?.textContent");
