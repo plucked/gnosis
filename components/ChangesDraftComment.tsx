@@ -13,7 +13,7 @@ export function ChangesDraftComment({
   noun = 'draft',
 }: {
   comment: Pick<PendingReviewComment, 'id' | 'body'>;
-  noun?: 'draft' | 'comment';
+  noun?: 'draft' | 'comment' | 'note';
   onEdit: (id: string, body: string) => void | Promise<void>;
   onRemove: (id: string) => void | Promise<void>;
   disabled?: boolean;
@@ -46,7 +46,7 @@ export function ChangesDraftComment({
             } finally {setSaving(false);}
           }}
         >
-          <label htmlFor={id}>{noun === 'draft' ? 'Edit draft comment' : 'Edit comment'}</label>
+          <label htmlFor={id}>{noun === 'draft' ? 'Edit draft comment' : `Edit ${noun}`}</label>
           <MarkdownCommentEditor
             id={id}
             rows={3}

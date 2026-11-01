@@ -47,17 +47,17 @@ export function AgentBriefView({
       if (copyFirst) await navigator.clipboard.writeText(markdown);
     } catch {
       setBusy(false);
-      setError('Could not copy to the clipboard, so your comments were kept. Try again.');
+      setError('Could not copy to the clipboard, so your notes were kept. Try again.');
       return;
     }
     try {
       await remove(ids);
-      setNotice(copyFirst ? 'Copied and deleted the brief.' : 'Deleted the brief.');
+      setNotice(copyFirst ? 'Copied and deleted the notes.' : 'Deleted the notes.');
     } catch {
       setError(
         copyFirst
-          ? 'Copied, but could not delete the comments on this computer. Try again.'
-          : 'Could not delete the comments on this computer. Try again.'
+          ? 'Copied, but could not delete the notes on this computer. Try again.'
+          : 'Could not delete the notes on this computer. Try again.'
       );
     } finally {
       setBusy(false);
@@ -66,39 +66,40 @@ export function AgentBriefView({
   const scopeLabel =
     subject.kind === 'stack' ? `Stack · ${subject.members.length} PRs` : `PR #${subject.members[0].number}`;
   return (
-    <section className="agent-brief" aria-label="Agent brief" ref={scroll.ref} onScroll={scroll.onScroll}>
+    <section className="agent-brief" aria-label="Local notes" ref={scroll.ref} onScroll={scroll.onScroll}>
       <header className="agent-brief-header">
         <div>
-          <h2>Agent brief</h2>
+          <h2>Local notes</h2>
           <p>
-            {scopeLabel} · {comments.length} {comments.length === 1 ? 'comment' : 'comments'} · Saved on this computer,
+            {scopeLabel} · {comments.length} {comments.length === 1 ? 'note' : 'notes'} · Saved on this computer,
             never posted to GitHub
           </p>
+          <p>Copy your notes with code context into any coding agent.</p>
         </div>
         {comments.length > 0 && (
           <div className="agent-brief-actions">
             <Button size="sm" disabled={busy} onClick={() => copy(markdown)}>
               {copyState === 'copied' ? <Check size={14} /> : <ClipboardCopy size={14} />}
-              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed, retry' : 'Copy'}
+              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed, retry' : 'Copy for agent'}
             </Button>
             <Button variant="outline" size="sm" disabled={busy} onClick={() => void clear(true)}>
-              Copy and delete
+              Copy and delete notes
             </Button>
             {confirming ? (
               <span className="agent-brief-confirm" role="group" aria-label="Confirm delete">
                 <span>
-                  Delete {comments.length} {comments.length === 1 ? 'comment' : 'comments'}?
+                  Delete {comments.length} {comments.length === 1 ? 'note' : 'notes'}?
                 </span>
                 <Button variant="destructive" size="sm" disabled={busy} onClick={() => void clear(false)}>
-                  Delete
+                  Delete notes
                 </Button>
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
-                  Keep
+                  Keep notes
                 </Button>
               </span>
             ) : (
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(true)}>
-                <Trash2 size={14} /> Delete
+                <Trash2 size={14} /> Delete notes
               </Button>
             )}
           </div>
@@ -116,10 +117,10 @@ export function AgentBriefView({
       )}
       {!comments.length ? (
         <div className="changes-empty agent-brief-empty">
-          <strong>No comments in this brief yet</strong>
+          <strong>No local notes yet</strong>
           <p>
-            In Changes, use the + beside a line or select several lines, write your comment, and choose Add to brief.
-            {subject.kind === 'stack' && ' Comments from the Combined and By PR views both collect here.'}
+            In Changes, use the + beside a line or select several lines, write a note, and choose Add local note.
+            {subject.kind === 'stack' && ' Notes from the Combined and By PR views both collect here.'}
           </p>
           <Button variant="outline" size="sm" onClick={onOpenChanges}>
             Open Changes
@@ -149,7 +150,7 @@ export function AgentBriefView({
                     </pre>
                   )}
                   <ChangesDraftComment
-                    noun="comment"
+                    noun="note"
                     comment={comment}
                     onRemove={(id) => remove(new Set([id]))}
                     onEdit={(id, body) => update((list) => list.map((c) => (c.id === id ? { ...c, body } : c)))}

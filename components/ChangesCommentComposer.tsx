@@ -70,8 +70,8 @@ export function ChangesCommentComposer({
       />
       <p className="changes-comment-help">
         {onSave
-          ? `${onAddToBrief ? 'Add to brief saves a note for your agent. ' : ''}Add to review saves a private draft. Comment now posts to GitHub immediately.`
-          : 'Add to brief saves a note for your agent on this computer. Nothing is posted to GitHub.'}
+          ? `${onAddToBrief ? 'Add local note saves only on this computer. ' : ''}Add to review saves a private draft. Comment now posts to GitHub immediately.`
+          : 'Add local note saves only on this computer. You can copy it with code context for an agent. Nothing is posted to GitHub.'}
         {note && ` ${note}`}
       </p>
       {error && (
@@ -92,7 +92,7 @@ export function ChangesCommentComposer({
             title="Shift+Cmd+Enter"
             onClick={() => void addToBrief()}
           >
-            Add to brief
+            Add local note
           </Button>
         )}
         {onSave && (
@@ -107,7 +107,7 @@ export function ChangesCommentComposer({
           </Button>
         )}
         <Button type="submit" size="sm" disabled={busy || !body.trim()}>
-          {busy ? 'Saving…' : onSave ? 'Add to review' : 'Add to brief'}
+          {busy ? 'Saving…' : onSave ? 'Add to review' : 'Add local note'}
         </Button>
       </div>
     </form>

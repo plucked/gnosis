@@ -107,8 +107,8 @@ export function useChangesComments({
       await agentBrief.update(fn);
       setError('');
     } catch {
-      setError('Could not save your agent brief on this computer. Free some disk space and try again.');
-      throw new Error('Could not save your agent brief.');
+      setError('Could not save your local notes on this computer. Free some disk space and try again.');
+      throw new Error('Could not save your local notes.');
     }
   };
   const renderThread = (thread: Thread) => renderThreadOverride ? renderThreadOverride(thread) : (
@@ -200,15 +200,15 @@ export function useChangesComments({
       {metadata.brief.map((c) => (
         <div className="changes-pending-comment" key={c.id}>
           <span>
-            In agent brief · Only you can see this
+            Local note · Only you can see this
             {brief?.onOpen && (
               <button type="button" className="changes-brief-link" onClick={brief.onOpen}>
-                Open brief
+                Open local notes
               </button>
             )}
           </span>
           <ChangesDraftComment
-            noun="comment"
+            noun="note"
             comment={c}
             onRemove={(id) => changeBrief((list) => list.filter((d) => d.id !== id))}
             onEdit={(id, body) => changeBrief((list) => list.map((d) => (d.id === id ? { ...d, body } : d)))}
@@ -223,7 +223,7 @@ export function useChangesComments({
           onCancel={() => setComposer(null)}
           note={
             writable && metadata.composer.startSide
-              ? 'GitHub comments need lines from one side of the diff, so this selection can only go in the brief.'
+              ? 'GitHub comments need lines from one side of the diff, so save this selection as a local note.'
               : undefined
           }
           onSave={

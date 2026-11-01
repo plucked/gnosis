@@ -75,8 +75,8 @@ void app.whenReady().then(async () => {
     await openStack();
 
     // The empty brief says how to start.
-    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Agent brief'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
-    await wait("document.querySelector('.agent-brief-empty')?.textContent.includes('Add to brief')");
+    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Local notes'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
+    await wait("document.querySelector('.agent-brief-empty')?.textContent.includes('Add local note')");
     assert.equal(await tabCount(), null);
     await click('Open Changes');
 
@@ -92,8 +92,8 @@ void app.whenReady().then(async () => {
     assert.equal(await hasButton('Add to review'), false);
     await js("window.fill('.changes-comment-composer textarea','This limit belongs in the first PR.')");
     await capture('composer-combined');
-    await click('Add to brief');
-    await wait("document.querySelector('.changes-pending-comment')?.textContent.includes('In agent brief')");
+    await click('Add local note');
+    await wait("document.querySelector('.changes-pending-comment')?.textContent.includes('Local note')");
     assert.equal(await tabCount(), '1');
 
     // By PR: the combined comment has different line coordinates, so it stays out of this diff.
@@ -126,7 +126,7 @@ void app.whenReady().then(async () => {
     assert.equal(await hasButton('Comment now'), true);
     assert.equal(await hasButton('Add to review'), true);
     await js("window.fill('.changes-comment-composer textarea','Rename these constants.')");
-    await click('Add to brief');
+    await click('Add local note');
     await wait("document.querySelector('.changes-pending-comment')?.textContent.includes('Rename these constants.')");
     assert.equal(await tabCount(), '2');
     assert.equal(await js('window.commentWrites.length'), 0, 'A brief comment never reaches GitHub');
@@ -139,18 +139,22 @@ void app.whenReady().then(async () => {
     assert.equal(await hasButton('Comment now'), false);
     assert.match(await js<string>("document.querySelector('.changes-comment-help').textContent"), /one side of the diff/);
     await js("window.fill('.changes-comment-composer textarea','Keep the old value.')");
-    await click('Add to brief');
+    await click('Add local note');
     await wait("document.querySelector('.brief-tab-count')?.textContent==='3'");
 
     // Reviewing the brief, including exactly what the agent receives.
-    await click('Open brief');
+    await click('Open local notes');
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     const headings = await js<string[]>("[...document.querySelectorAll('.agent-brief-group h3')].map(e=>e.textContent)");
     assert.equal(headings[0], 'Combined stack');
     assert.match(headings[1], /^By PR · #\d+/);
     assert.match(await js<string>("document.querySelector('.agent-brief-location').textContent"), /src\/worker\.ts new line 36/);
     await capture('brief');
-    await click('Copy');
+    win.setSize(640, 800);
+    await capture('brief-narrow');
+    assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'), true);
+    win.setSize(1280, 800);
+    await click('Copy for agent');
     await wait('window.copied.length===1');
     const markdown = await js<string>('window.copied[0]');
     assert.match(markdown, /## How I reviewed this/);
@@ -169,7 +173,7 @@ void app.whenReady().then(async () => {
     await js("document.querySelectorAll('.agent-brief-location')[0].click()");
     await wait("document.querySelector('.stack-changes-switch button[aria-pressed=true]')?.textContent==='Combined'");
     await wait("document.querySelector('.changes-pending-comment')?.textContent.includes('This limit belongs')");
-    await click('Open brief');
+    await click('Open local notes');
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     await js("[...document.querySelectorAll('.agent-brief-comment')].find(c=>c.textContent.includes('Rename these')).querySelector('.agent-brief-location').click()");
     await wait("document.querySelector('.stack-changes-switch button[aria-pressed=true]')?.textContent==='By PR'");
@@ -178,7 +182,7 @@ void app.whenReady().then(async () => {
     // Jumping to a viewed file opens it without changing the reviewer's progress.
     await js(`(()=>{const c=window.workerRow().querySelector('.changes-file-actions label input');if(!c.checked)c.click()})()`);
     await wait("window.workerRow().querySelector('.commit-stream-file-body')?.hidden===true");
-    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Agent brief'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
+    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Local notes'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     await js("[...document.querySelectorAll('.agent-brief-comment')].find(c=>c.textContent.includes('Rename these')).querySelector('.agent-brief-location').click()");
     await wait("window.workerRow().querySelector('.commit-stream-file-body')?.hidden===false");
@@ -187,12 +191,12 @@ void app.whenReady().then(async () => {
     await js("window.workerRow().querySelector('.changes-file-actions label input').click()");
 
     // Editing and removing one comment.
-    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Agent brief'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
+    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Local notes'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     await js("[...document.querySelectorAll('.agent-brief-comment')].find(c=>c.textContent.includes('Rename these')).querySelector('.changes-draft-comment button').click()");
     await wait("!!document.querySelector('.agent-brief-comment textarea')");
     await js("window.fill('.agent-brief-comment textarea','Rename these constants and their tests.')");
-    await click('Save comment');
+    await click('Save note');
     await wait("document.querySelector('.agent-brief').textContent.includes('and their tests')");
 
     // Everything survives leaving, and a full reload. The fixture clears storage unless told to keep it.
@@ -201,7 +205,7 @@ void app.whenReady().then(async () => {
     await setup();
     await openStack();
     await wait("document.querySelector('.brief-tab-count')?.textContent==='3'");
-    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Agent brief'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
+    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Local notes'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
 
     // A single PR has its own brief, separate from the stack it belongs to.
@@ -209,7 +213,7 @@ void app.whenReady().then(async () => {
     await wait("!!document.querySelector('.stack-scope-popup [role=option]')");
     await js("[...document.querySelectorAll('.stack-scope-popup [role=option]')].find(o=>/#\\d+/.test(o.textContent)).click()");
     await wait("!!document.querySelector('.stack-back')");
-    await wait("document.querySelector('.agent-brief-empty')?.textContent.includes('Add to brief')");
+    await wait("document.querySelector('.agent-brief-empty')?.textContent.includes('Add local note')");
     assert.equal(await tabCount(), null);
     await click('Open Changes');
     await wait("!!document.querySelector('.commit-stream-row[data-active=true]')");
@@ -218,15 +222,15 @@ void app.whenReady().then(async () => {
     await js('window.lineNumber(36).click()');
     await wait("!!document.querySelector('.changes-comment-composer textarea')");
     await js("window.fill('.changes-comment-composer textarea','Only about this PR.')");
-    await click('Add to brief');
+    await click('Add local note');
     await wait("document.querySelector('.brief-tab-count')?.textContent==='1'");
-    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Agent brief'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
+    await js(`(()=>{const t=[...document.querySelectorAll('[role=tab]')].find(e=>e.textContent.startsWith('Local notes'));t.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,button:0}));t.click()})()`);
     await wait("document.querySelector('.agent-brief-group h3')?.textContent.startsWith('Single PR')");
-    await click('Copy');
+    await click('Copy for agent');
     await wait('window.copied.length===1');
     assert.match(await js<string>('window.copied[0]'), /\*\*Single PR\*\* \(1 comment\)/);
     assert.doesNotMatch(await js<string>('window.copied[0]'), /Rename these constants/);
-    await click('Copy and delete');
+    await click('Copy and delete notes');
     await wait("document.querySelector('.agent-brief')?.textContent.includes('Copied and deleted')");
     assert.equal(await tabCount(), null);
     await click('Back to stack');
@@ -235,20 +239,20 @@ void app.whenReady().then(async () => {
     // Copy and delete keeps everything if the clipboard refuses.
     await wait("document.querySelectorAll('.agent-brief-comment').length===3");
     await js('window.clipboardFails=true');
-    await click('Copy and delete');
-    await wait("document.querySelector('.agent-brief [role=alert]')?.textContent.includes('your comments were kept')");
+    await click('Copy and delete notes');
+    await wait("document.querySelector('.agent-brief [role=alert]')?.textContent.includes('your notes were kept')");
     assert.equal(await js("document.querySelectorAll('.agent-brief-comment').length"), 3);
 
     // Delete asks first, and Keep backs out.
     await js("[...document.querySelectorAll('.agent-brief-actions button')].at(-1).click()");
-    await wait("document.querySelector('.agent-brief-confirm')?.textContent.includes('Delete 3 comments?')");
-    await click('Keep');
+    await wait("document.querySelector('.agent-brief-confirm')?.textContent.includes('Delete 3 notes?')");
+    await click('Keep notes');
     assert.equal(await js("document.querySelectorAll('.agent-brief-comment').length"), 3);
     await js("[...document.querySelectorAll('.agent-brief-actions button')].at(-1).click()");
     await wait("!!document.querySelector('.agent-brief-confirm')");
     await capture('delete-confirm');
     await js("document.querySelector('.agent-brief-confirm [data-variant=destructive]').click()");
-    await wait("document.querySelector('.agent-brief')?.textContent.includes('Deleted the brief')");
+    await wait("document.querySelector('.agent-brief')?.textContent.includes('Deleted the notes')");
     assert.equal(await tabCount(), null);
     assert.equal(
       await js("Object.keys(localStorage).filter(k=>k.startsWith('gnosis-agent-brief:')).length"),
