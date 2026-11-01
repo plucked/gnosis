@@ -132,6 +132,7 @@ declare global {
       offChatProgress: () => void;
       onChatToolUse: (callback: (toolName: string) => void) => void;
       offChatToolUse: () => void;
+      conflictResolution: (request: import('../lib/conflict-resolution').ConflictRequest) => Promise<import('../lib/conflict-resolution').ConflictReply>;
       getPrActionState: (url: string, force?: boolean) => Promise<import('../lib/pr-actions').PrActionState>;
       getStackMergePlan: (urls: string[]) => Promise<import('../lib/pr-actions').PrMergePlan>;
       performPrAction: (request: import('../lib/pr-actions').PrActionRequest) => Promise<import('../lib/pr-actions').PrActionResult>;
@@ -142,6 +143,7 @@ declare global {
       applyOnboarding: (draft: SetupDraft, account: string | null) => Promise<Preferences>;
       loadHarnessEnvironment: () => Promise<HarnessEnvironment>;
       saveHarnessEnvironment: (provider: import('../lib/models').Provider, variables: EnvironmentVariable[]) => Promise<void>;
+      onPreferencesChanged?: (callback: (prefs: Preferences) => void) => () => void;
       loadPreferences: () => Promise<Preferences>;
       savePreferences: (prefs: Preferences) => Promise<void>;
       searchPullRequests: () => Promise<PrSearchResult[]>;

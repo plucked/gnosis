@@ -1,3 +1,4 @@
+import { loadWorkbenchPage } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -5,7 +6,7 @@ import path from 'node:path';
 void app.whenReady().then(async () => {
   const win = new BrowserWindow({width:1024,height:700,useContentSize:true,show:true,webPreferences:{backgroundThrottling:false}});
   const js = <T=unknown>(code:string) => win.webContents.executeJavaScript(code) as Promise<T>;
-  const wait = async (code:string, attempts=200) => { for(let i=0;i<attempts;i++){if(await js(code))return;await new Promise(r=>setTimeout(r,30));}throw Error(`Timed out: ${code}\n${await js('document.body.innerText')}`); };
+  const wait = async (code:string, attempts=200) => { for(let i=0;i<attempts;i++){if(await js(code))return;await new Promise(r=>setTimeout(r,30));}throw Error(`Timed out: ${code}\n${await js<string>('document.body.innerText')}`); };
   // CI desktops can clamp native windows below the requested dimensions.
   // Set Chromium's viewport explicitly so density assertions measure their named size.
   const viewport=async(width:number,height:number)=>{
@@ -19,7 +20,7 @@ void app.whenReady().then(async () => {
   win.webContents.on('render-process-gone', (_event, details) => console.error('Renderer exited:', details.reason));
   try {
     // Cold Vite startup on CI is separate from the layout assertions below.
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&checks`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&checks`);
     win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled',{enabled:true});
     await viewport(1280,800);
     await wait("document.querySelectorAll('.queue-item').length===7", 1000);
@@ -50,6 +51,7 @@ void app.whenReady().then(async () => {
       window.dispatchEvent(new Event('fixture-pr-read-change'));
     })()`);
     await wait("document.querySelectorAll('.stack-overview-member').length===10 && document.querySelector('.stack-briefing-state')?.textContent.includes('No stack briefing yet')");
+    assert.equal(await js("document.querySelector('.stack-merge-plan')===null"),true,'Ready stacks need no duplicate action checklist');
     assert.equal(await js('window.briefingCalls'),0,'Opening the overview must not start briefing generation');
     assert.equal(await js("[...document.querySelectorAll('.stack-overview-member')].some(e=>e.textContent.includes('klang/engine'))"),false,'Common repository belongs in stack header');
     const completeRows=()=>js<number>("(()=>{const bottom=document.querySelector('.pr-summary-content').getBoundingClientRect().bottom;return [...document.querySelectorAll('.stack-overview-member')].filter(e=>e.getBoundingClientRect().bottom<=bottom).length})()");
@@ -64,7 +66,7 @@ void app.whenReady().then(async () => {
     await wait("document.querySelector('.stack-briefing-state')?.textContent.includes('paused by your filters')");assert.equal(await js("document.querySelector('.stack-briefing-state [role=alert]')===null"),true,'A new briefing state clears the previous start error');await capture('paused');
     await click('Generate stack briefing');await wait("document.querySelector('.stack-briefing-state')?.textContent.includes('Generating stack briefing')");
     await js("window.stackItem.briefing=undefined;window.stackItem.subject.members[1].repo='klang/worker';window.dispatchEvent(new Event('fixture-pr-read-change'))");
-    await wait("document.querySelector('.stack-overview-member:nth-child(2)').textContent.includes('klang/worker')");
+    await wait("document.querySelector('.stack-overview-member[data-pr-url$=\"/121\"]').textContent.includes('klang/worker')");
     await viewport(640,600);await capture('mixed-repos-narrow');assert.equal(await js('document.documentElement.scrollWidth<=innerWidth'),true);
     console.log('Stack layout passed: coherent freshness, compact ten-PR overview, briefing generation/retry/pause, common and mixed repositories.');app.exit(0);
   }catch(error){console.error(error);await capture('failure');app.exit(1);}

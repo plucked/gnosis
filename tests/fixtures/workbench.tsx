@@ -1,3 +1,4 @@
+import { automaticBriefingBlock } from '../../lib/repository-settings';
 import { setupViews, setupPreferences, type OnboardingState, type SetupDraft } from '../../lib/onboarding';
 import { checksMocks } from './pr-checks';
 import { markdownBefore, markdownAfter, markdownFiles } from './markdown-review';
@@ -321,7 +322,7 @@ if (new URLSearchParams(location.search).has('filters')) {
     }
 }
 if (polishScenario) {
-  items[0].briefing = { key: 'paused', status: 'paused', updatedAt: date };
+  items[0].briefing = { key: 'paused', status: 'paused', pauseDetail: 'Daily briefing attempt limit reached. Resets at midnight.', updatedAt: date };
   // A long file followed by a different stack member exercises sticky attribution.
   const first = review.slides[0].diffHunks[0];
   first.content =
@@ -582,6 +583,8 @@ const mocks = {
   },
   loadHarnessEnvironment: async () => ({ claude: [], codex: [] }),
   saveHarnessEnvironment: async () => {},
+  onPreferencesChanged: () => () => {},
+  onWorkbenchChanged: () => () => {},
   getLocalClones: async () => [],
   addLocalClone: async () => [],
   removeLocalClone: async () => [],
@@ -775,6 +778,9 @@ if (root) {
 
 function visibleFixtureItems() {
   return items.flatMap(item => {
+    if (polishScenario && item.briefing?.status === 'paused') {
+      item = { ...item, briefing: { ...item.briefing, pauseDetail: automaticBriefingBlock(item.subject, prefs, prefs.briefingDailyLimit ?? 10, {}) } };
+    }
     const subject = withoutMutedMembers(item.subject, fixtureMutedUrls());
     if (!subject || !matchesPrInactivity(subject, normalizePrInactivityDays(prefs.prInactivityDays), Date.now(), new Set(fixtureStars.map(entry => entry.member.url)))) return [];
     if (subject === item.subject) return [item];

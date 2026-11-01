@@ -1,3 +1,4 @@
+import { loadWorkbenchPage } from './workbench-ready';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +14,7 @@ void app.whenReady().then(async () => {
   // Assigning a mock evaluates to a function, which cannot cross the IPC boundary.
   const mock = (code: string) => js(`${code};null`);
   const wait = async (code: string) => {
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 500; i++) {
       if (await js(code)) return;
       await new Promise((r) => setTimeout(r, 30));
     }
@@ -27,7 +28,7 @@ void app.whenReady().then(async () => {
   const repoPath = '/Users/dev/Development/a-rather-long-checkout-folder-name/engine';
   const entry = { repo: 'klang/engine', path: repoPath, remote: 'origin', reads: 0, fallbacks: 0 };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
     await wait("document.querySelectorAll('.queue-item').length>0");
     await click('Settings');
     await wait("!!document.querySelector('[role=dialog] [role=tab]')");

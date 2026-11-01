@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -5,17 +6,17 @@ import path from 'node:path';
 void app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 1280, height: 800, useContentSize: true, show: true, webPreferences: { backgroundThrottling: false } });
   const js = <T = unknown>(code: string) => win.webContents.executeJavaScript(code) as Promise<T>;
-  const wait = async (code: string) => { for (let i = 0; i < 300; i++) { if (await js(code)) return; await new Promise(r => setTimeout(r, 40)); } throw Error(`Timed out: ${code}\n${await js('document.body.innerText')}`); };
+  const wait = async (code: string) => { for (let i = 0; i < 300; i++) { if (await js(code)) return; await new Promise(r => setTimeout(r, 40)); } throw Error(`Timed out: ${code}\n${await js<string>('document.body.innerText')}`); };
   const click = async (label: string) => { await wait(`[...document.querySelectorAll('button')].some(b=>(b.textContent.trim()===${JSON.stringify(label)}||b.getAttribute('aria-label')===${JSON.stringify(label)})&&b.checkVisibility())`); await js(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>(b.textContent.trim()===${JSON.stringify(label)}||b.getAttribute('aria-label')===${JSON.stringify(label)})&&b.checkVisibility());b.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));b.click()})()`); };
   const shots = path.resolve('.impeccable/review/stack-hierarchy'); fs.mkdirSync(shots, { recursive: true });
   const capture = async (name: string) => { win.show(); win.focus(); await js('document.fonts.ready'); await new Promise(r => setTimeout(r, 200)); fs.writeFileSync(path.join(shots, name + '.png'), (await win.webContents.capturePage()).toPNG()); };
   const choose = (value: string) => js(`window.selectOption('[aria-label="Review scope"]',${JSON.stringify(value)})`);
   const pr = 'https://github.com/klang/engine/pull/121';
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&checks`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&unread&checks`);
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js(`window.starts=[];window.reads=[];const original=window.electronAPI.workbenchMarkPrRead;window.electronAPI.workbenchMarkPrRead=r=>{window.reads.push(r);return original(r)};window.electronAPI.startReview=async r=>{window.starts.push(r);return {reviewId:'single-pr'}};void 0`);
     await js(`(()=>{const checks=window.electronAPI.getPrChecks;window.electronAPI.getPrChecks=async(r,o)=>{if(r.url.endsWith('/122'))throw Error('Checks temporarily unavailable');const result=await checks(r,o);return r.url.endsWith('/120')?{...result,checks:[]}:result;};})()`);
     const stack = await js<string>("(async()=>(await window.electronAPI.workbenchQueue()).items.find(i=>i.subject.kind==='stack').subject.id)()");
@@ -24,13 +25,13 @@ void app.whenReady().then(async () => {
     assert.equal(await js("!!document.querySelector('.pr-description')"), false, 'Stack summary has no arbitrary selected PR description');
     assert.equal(await js('window.reads.length'), 0, 'Stack overview does not mark members read');
     assert.equal(await js('window.starts.length'), 0);
-    await wait("document.querySelector('.stack-overview').textContent.includes('No checks reported') && document.querySelector('.stack-overview').textContent.includes('Checks unavailable') && !!document.querySelector('.stack-checks-failed')");
+    await wait("document.querySelector('.stack-overview').textContent.includes('No checks reported') && document.querySelector('.stack-overview').textContent.includes('Checks unavailable') && !!document.querySelector('.stack-check-result.is-danger')");
     await capture('overview-light');
     await click('Rename stack');
     await js(`(()=>{const e=document.querySelector('#stack-name');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Command queue redesign');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
     await click('Save');
     await wait("document.querySelector('.pr-overview-heading h1')?.textContent==='Command queue redesign'");
-    await click('Open PR #121');
+    await click('Route worker commands through the queue');
     await wait("document.querySelector('.pr-overview-heading h1')?.textContent==='Route worker commands through the queue'");
     assert.match(await js<string>("document.querySelector('.review-breadcrumbs').textContent"), /Command queue redesign/);
     await wait('window.reads.length>0');
@@ -58,7 +59,7 @@ void app.whenReady().then(async () => {
     await choose(stack);
     await wait("!!document.querySelector('.pr-summary-page.is-stack') && document.querySelectorAll('.commit-row').length>3");
     await click('Summary');
-    await wait("[...document.querySelectorAll('.stack-overview-member')].find(row=>row.querySelector('[aria-label=\"Open PR #121\"]'))?.textContent.includes('1/5 files viewed')");
+    await wait("document.querySelector('.stack-overview-member[data-pr-url$=\"/121\"]')?.textContent.includes('1/5 files viewed')");
     await capture('renamed-overview-light');
     await js("document.documentElement.classList.add('dark')");
     win.setContentSize(900, 600);

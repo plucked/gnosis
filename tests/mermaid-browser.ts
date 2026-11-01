@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -48,9 +49,9 @@ void app.whenReady().then(async () => {
     return s.height<=321 && s.width<=c.width+1 && preview.scrollHeight<=preview.clientHeight+1 && preview.scrollWidth<=preview.clientWidth+1 && getComputedStyle(preview).overflowY!=='auto';
   })()`);
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
     await js("document.title='Gnosis — automated Mermaid checks'");
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     const tall = `flowchart TD
       A[Check migration state] --> B[Prepare tables online]
       B --> C[Stop gameplay and wait for pods]

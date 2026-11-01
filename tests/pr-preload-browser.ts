@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 
@@ -22,8 +23,8 @@ void app.whenReady().then(async () => {
     );
   try {
     if (process.platform === 'darwin') app.show();
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary`);
+    await waitForWorkbenchQueue(win.webContents);
     // Let discovery prepare the queue before opening either inspection tab.
     await js(`(async()=>{window.inspection=(await import('/lib/inspection-cache.ts')).inspectionData;await window.inspection.flush();window.inspectionReads=[];
       for(const name of ['getPrChanges','getPrCommits','getPrChangeFile','getCommitComparison']) {

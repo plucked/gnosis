@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -44,7 +45,7 @@ void app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
   };
   const openPr = async () => {
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js(
       "window.deepAll=(selector,root=document)=>[...root.querySelectorAll(selector),...[...root.querySelectorAll('*')].flatMap(e=>e.shadowRoot?window.deepAll(selector,e.shadowRoot):[])]; [...document.querySelectorAll('.queue-row-main')].find(b=>b.textContent.includes('Fix reconnect')).click(); void 0"
     );
@@ -54,7 +55,7 @@ void app.whenReady().then(async () => {
   };
   try {
     const url = `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary&file-filters&keep-progress`;
-    await win.loadURL(url.replace('&keep-progress', ''));
+    await loadWorkbenchPage(win, url.replace('&keep-progress', ''));
     await openPr();
     await progress(0);
     await js("window.deepAll('[role=treeitem]').find(e=>e.dataset.itemPath==='tests/').click()");
@@ -112,7 +113,7 @@ void app.whenReady().then(async () => {
     await progress(3);
     await wait("!document.querySelector('[role=menu]')");
     await wait("!window.deepAll('[data-item-path]').some(e=>e.dataset.itemPath==='tests/')");
-    await win.loadURL(url);
+    await loadWorkbenchPage(win, url);
     await openPr();
     await progress(3);
     await click('Commits');

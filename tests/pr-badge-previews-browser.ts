@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -67,11 +68,11 @@ void app.whenReady().then(async () => {
     await wait(`!${content}`);
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL ?? ''}?entity-badges`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?entity-badges`);
     // Keep keyboard-focus behavior deterministic even if the desktop activates another window.
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js(
       "window.previewReads=[];window.basePreview=window.electronAPI.getPrBadgePreview;window.electronAPI.getPrBadgePreview=async url=>{window.previewReads.push(url);return window.basePreview(url)};window.copies=[];Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:text=>{window.copies.push(text);return Promise.resolve()}});void 0"
     );

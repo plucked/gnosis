@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import { menuAction } from './entry-menu-helpers';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
@@ -49,7 +50,7 @@ void app.whenReady().then(async () => {
     await wait("!document.querySelector('.settings-tabs')");
   };
   try {
-    await win.loadURL(`${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&inactivity`);
+    await loadWorkbenchPage(win, `${process.env.GNOSIS_WORKBENCH_URL}?pr-summary&inactivity`);
     await wait("document.querySelectorAll('.queue-item').length===6");
     assert.equal(
       await js('!!document.querySelector(\'[aria-label="Actions for PR #150"]\')'),
@@ -76,7 +77,7 @@ void app.whenReady().then(async () => {
     await setDays('120');
     await wait('window.electronAPI.loadPreferences().then(p=>p.prInactivityDays===120)');
     await closeSettings();
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await click('Star PR #150');
     await click('Settings');
     await wait("!!document.querySelector('.pr-inactivity-setting')");

@@ -1,3 +1,5 @@
+import { RepositorySettingsProvider } from '../components/RepositorySettingsProvider';
+import { ConflictWorkspaceHost } from '../components/ConflictWorkspaceHost';
 import { RecentlyViewedContext } from '../components/RecentlyViewed';
 import { createRecentlyViewed, homeVisit, reviewVisit, type RecentVisit } from '../lib/recently-viewed';
 import { readReviewState, writeReviewState } from '../lib/renderer-review-state';
@@ -374,7 +376,7 @@ export function App() {
     },
     { id: 'nav:setup', label: 'Run setup again', keywords: 'onboarding tutorial first run', perform: () => navigate({ kind: 'home', onboarding: 'setup' }) },
     { id: 'nav:walkthrough', label: 'Show walkthrough', keywords: 'tour tutorial onboarding help', perform: () => navigate({ kind: 'home', onboarding: 'tour' }) },
-    ...['queue', 'review', 'appearance', 'integrations'].map((section) => ({
+    ...['queue', 'repositories', 'review', 'appearance', 'integrations'].map((section) => ({
       id: `nav:settings:${section}`,
       label: `Settings · ${section}`,
       keywords: 'preferences model theme account',
@@ -383,7 +385,7 @@ export function App() {
   ];
 
   return (
-    <RecentlyViewedContext.Provider value={{ store: recentlyViewed, open: openRecent }}>
+    <RepositorySettingsProvider><RecentlyViewedContext.Provider value={{ store: recentlyViewed, open: openRecent }}>
     <CommandCenter navigate={navigate} commands={commands}>
       {/* Skip-to-content link — visually hidden until focused. Lets
           keyboard users jump straight to the slide/page content
@@ -431,8 +433,9 @@ export function App() {
         )}
       </div>
       <ActivityDrawer onOpen={openActivity} open={activityOpen} onOpenChange={setActivityOpen} />
+      <ConflictWorkspaceHost />
       <Toaster />
     </CommandCenter>
-    </RecentlyViewedContext.Provider>
+    </RecentlyViewedContext.Provider></RepositorySettingsProvider>
   );
 }

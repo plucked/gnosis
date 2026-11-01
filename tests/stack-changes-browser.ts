@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -30,10 +31,10 @@ void app.whenReady().then(async () => {
     fs.writeFileSync(path.join(shots, `${name}.png`), (await window.webContents.capturePage()).toPNG());
   };
   try {
-    await window.loadURL(`${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary`);
+    await loadWorkbenchPage(window, `${process.env.GNOSIS_WORKBENCH_URL ?? ''}?pr-summary`);
     window.webContents.debugger.attach('1.3');
     await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(window.webContents);
     await js(`(async()=>{
       const {inspectionData}=await import('/lib/inspection-cache.ts');inspectionData.stop();
       window.combinedReads=0;window.sourceOpens=[];window.stackRequests=[];window.cancelledRequests=[];window.failRootComments=true;window.preloadGate=new Promise(resolve=>window.releasePreload=resolve);window.deepAll=(selector,root=document)=>[...root.querySelectorAll(selector),...[...root.querySelectorAll('*')].flatMap(e=>e.shadowRoot?window.deepAll(selector,e.shadowRoot):[])];

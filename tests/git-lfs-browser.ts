@@ -1,3 +1,4 @@
+import { loadWorkbenchPage, waitForWorkbenchQueue } from './workbench-ready';
 import assert from 'node:assert/strict';
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
@@ -38,9 +39,9 @@ void app.whenReady().then(async () => {
   try {
     const url = process.env.GNOSIS_WORKBENCH_URL;
     assert.ok(url);
-    await win.loadURL(url + '?pr-summary');
+    await loadWorkbenchPage(win, url + '?pr-summary');
     win.webContents.setZoomFactor(1);
-    await wait("document.querySelectorAll('.queue-item').length===7");
+    await waitForWorkbenchQueue(win.webContents);
     await js(`(async()=>{
       const cache=await import('/lib/inspection-cache.ts'); await cache.inspectionData.flush();
       window.lfsCalls=[];window.lfsFailures=0;
@@ -106,7 +107,7 @@ void app.whenReady().then(async () => {
     await click('Changes');
     assert.equal(await js('window.lfsCalls.length'), 3);
     // Explanation uses the same explicit interaction, preserving errors for retry.
-    await win.loadURL(url + '?images');
+    await loadWorkbenchPage(win, url + '?images');
     await wait("document.querySelectorAll('.queue-item').length===7");
     await js(`(()=>{
       const original=window.electronAPI.loadReviewImages;
@@ -151,7 +152,7 @@ void app.whenReady().then(async () => {
     await wait("document.querySelectorAll('.review-image-diff:first-of-type .review-image-stage img').length>=2");
     assert.equal(await js('window.imageDownloads'), 2);
     win.setContentSize(1280, 800);
-    await win.loadURL(url + '?images&lfs-text');
+    await loadWorkbenchPage(win, url + '?images&lfs-text');
     await wait("document.querySelectorAll('.queue-item').length===7");
     await js(`(async()=>{
       const review=await window.electronAPI.loadReview('workbench-review');
