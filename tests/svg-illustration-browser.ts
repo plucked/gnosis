@@ -55,13 +55,20 @@ void app.whenReady().then(async () => {
     await new Promise((r) => setTimeout(r, 300));
     fs.writeFileSync(path.join(dir, `${name}.png`), (await within(`capturePage ${name}`, win.webContents.capturePage())).toPNG());
   };
-  const inner = () => {
-    const frame = win.webContents.mainFrame.frames.find((f) => f.url === 'about:srcdoc');
-    assert.ok(frame);
-    return frame;
+  // Closing the expanded view replaces its iframe, but the old frame stays in the frame tree until it
+  // detaches, and executeJavaScript on it never settles. Wait for the single live, loaded illustration frame.
+  const inner = async () => {
+    for (let i = 0; i < 160; i++) {
+      const frames = win.webContents.mainFrame.frames.filter((f) => !f.detached);
+      if (frames.length === 1 && frames[0].url === 'about:srcdoc') return frames[0];
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw Error('Timed out waiting for a single live illustration frame');
   };
-  const innerJs = async (code: string): Promise<unknown> =>
-    within(`frame executeJavaScript ${code.slice(0, 120)}`, inner().executeJavaScript(code));
+  const innerJs = async (code: string): Promise<unknown> => {
+    const frame = await inner();
+    return within(`frame executeJavaScript ${code.slice(0, 120)}`, frame.executeJavaScript(code));
+  };
   try {
     await loadWorkbenchPage(win,
       'data:text/html,' + encodeURIComponent(buildSvgIllustrationDocument(SVG_MOTION_FIXTURE, 'capture-test'))
