@@ -1,0 +1,37 @@
+name: Illustration flake diagnosis
+on:
+  push:
+    branches: [diag/illustration-hang]
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+      - name: Loop illustration check
+        shell: bash
+        env:
+          GNOSIS_TRACE_STEPS: '1'
+        run: |
+          fails=0
+          for i in $(seq 1 14); do
+            echo "::group::attempt $i"
+            if ! xvfb-run -a node scripts/test-workbench.mjs --illustrations > attempt.log 2>&1; then
+              fails=$((fails+1)); echo "::endgroup::"; echo "ATTEMPT $i FAILED"; grep -v dbus attempt.log | tail -40
+            else
+              echo "::endgroup::"; echo "attempt $i passed in $(grep -c trace attempt.log) traced steps"
+            fi
+          done
+          echo "FAILURES: $fails"

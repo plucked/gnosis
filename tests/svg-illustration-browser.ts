@@ -19,6 +19,8 @@ void app.whenReady().then(async () => {
   // Every Electron await is bounded so a stuck step fails with its name instead of the runner's global timeout.
   const within = async <T>(label: string, promise: Promise<T>, ms = 15_000): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const started = Date.now();
+    if (process.env.GNOSIS_TRACE_STEPS) console.log(`[trace] -> ${label}`);
     try {
       return await Promise.race([
         promise,
@@ -28,6 +30,7 @@ void app.whenReady().then(async () => {
       ]);
     } finally {
       clearTimeout(timer);
+      if (process.env.GNOSIS_TRACE_STEPS) console.log(`[trace] <- ${Date.now() - started}ms ${label}`);
     }
   };
   const js = async <T = unknown>(code: string): Promise<T> =>
